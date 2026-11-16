@@ -1,0 +1,228 @@
+===============================================================================
+  PARAMETROS PC-SAFT DEL ARTICULO  (para copiar/pegar en pcsaft_vle.py)
+===============================================================================
+
+  Arce, Mattedi & Aznar (2006), Fluid Phase Equilibria 246, 52-63.
+  "Vapor-liquid equilibrium of copolymer + solvent mixtures ..."
+
+  Este archivo reune TODOS los valores PC-SAFT que da el articulo, listos para
+  reemplazar a mano en el bloque "PARAMETROS EDITABLES" de pcsaft_vle.py.
+
+  Como usarlo:
+    1. Elige una combinacion solvente + copolimero de la seccion [4].
+    2. Copia los bloques SOLVENTE, COPOLIMERO y los KIJ indicados.
+    3. Pega esos valores en pcsaft_vle.py y ejecuta.
+
+  Unidades:
+    MW      : g/mol
+    m_MW    : (m/MW) en 1/mol
+    sigma   : Angstrom
+    eps_k   : eps/k en K
+    kAB     : volumen de asociacion (adimensional)   [solo nC4OH]
+    epsAB_k : energia de asociacion en K             [solo nC4OH]
+
+
+===============================================================================
+ [1]  SOLVENTES  (Tabla 4b)
+===============================================================================
+ Clave   Nombre            MW        m_MW        sigma     eps_k     kAB       epsAB_k
+ ------  ----------------  --------  ----------  --------  --------  --------  --------
+ nC5     n-pentano          72.15    0.034090    3.8729    240.11      -         -
+ nC6     n-hexano           86.18    0.034088    3.8383    239.57      -         -
+ cC6     ciclohexano        84.16    0.029946    3.8399    279.21      -         -
+ BZN     benceno            78.12    0.032712    3.5878    281.55      -         -
+ TOL     tolueno            92.14    0.030984    3.6869    282.69      -         -
+ CHL     cloroformo        119.38    0.021826    3.4085    265.94      -         -
+ ACE     acetona            58.08    0.037879    3.4956    272.26      -         -
+ nC4OH   1-butanol          74.12    0.035126    3.7563    263.18    0.008752  2489.23
+
+
+===============================================================================
+ [2]  MONOMEROS  (Tabla 4b)   -- informativo; en PC-SAFT se usan los
+      HOMOPOLIMEROS (seccion [3]) para cada monomero del copolimero.
+===============================================================================
+ Clave   Nombre              MW        m_MW        sigma     eps_k
+ ------  ------------------  --------  ----------  --------  --------
+ STR     estireno           104.14    0.024339    3.9750    318.70
+ VA      acetato de vinilo   86.09    0.011525    5.0706    421.42
+ BTD     butadieno           54.10    0.046033    3.4508    215.10
+ ET      etileno             28.10    0.056070    3.4250    178.77
+ VC      cloruro de vinilo   62.50    0.091211    2.4024    160.05
+
+
+===============================================================================
+ [3]  HOMOPOLIMEROS  (Tabla 4b, ref. [44])
+      Estos son los parametros que van en los sub-bloques "alpha" y "beta"
+      del COPOLIMERO en pcsaft_vle.py.
+===============================================================================
+ Clave   Nombre            m_MW        sigma     eps_k    Monomero que representa
+ ------  ----------------  ----------  --------  -------  -----------------------
+ PS      poliestireno      0.033238    3.5022    320.14   STR (estireno)
+ PVA     poli(VA)          0.029905    3.5086    310.14   VA  (acetato de vinilo)
+ PB      polibutadieno     0.060552    2.9845    240.21   BTD (butadieno)
+ PE      polietileno       0.028193    4.0125    320.24   ET  (etileno)
+ PVC     poli(VC)          0.021369    3.7486    370.42   VC  (cloruro de vinilo)
+
+
+===============================================================================
+ [4]  COPOLIMEROS: composicion, MW y pares (alpha / beta)   (Tabla 3)
+===============================================================================
+ El numero del nombre = % en peso del PRIMER monomero (= w_alpha * 100).
+ "alpha" es ese primer monomero; "beta" es el segundo.
+
+ Copolimero  MW_copol   w_alpha  alpha(homopol)  beta(homopol)   Nombre completo
+ ----------  ---------  -------  --------------  --------------  -----------------------------------
+ PSBR4.1       100000    0.041   STR -> PS       BTD -> PB       poly(styrene-co-butadiene) 4.1%
+ PSBR5         100000    0.050   STR -> PS       BTD -> PB       poly(styrene-co-butadiene) 5%
+ PSBR23        720000    0.230   STR -> PS       BTD -> PB       poly(styrene-co-butadiene) 23%
+ PSBR41        100000    0.410   STR -> PS       BTD -> PB       poly(styrene-co-butadiene) 41%
+ PSBR45        600000    0.450   STR -> PS       BTD -> PB       poly(styrene-co-butadiene) 45%
+ PVAE9         100000    0.090   VA  -> PVA      ET  -> PE       poly(vinyl acetate-co-ethylene) 9%
+ PVAE25         88000    0.250   VA  -> PVA      ET  -> PE       poly(vinyl acetate-co-ethylene) 25%
+ PVAE50        250000    0.500   VA  -> PVA      ET  -> PE       poly(vinyl acetate-co-ethylene) 50%
+ PVAE70        280000    0.700   VA  -> PVA      ET  -> PE       poly(vinyl acetate-co-ethylene) 70%
+ PVAVC12        30000    0.120   VA  -> PVA      VC  -> PVC      poly(vinyl acetate-co-vinyl chloride) 12%
+
+ NOTA: para PSBR4.1, PSBR5, PSBR41 y PVAVC12 el articulo NO reporta z ni B en
+ la Tabla 3 ("datos PVT del copolimero no encontrados"). El codigo los calcula
+ automaticamente con las reglas de la Tabla 1 (distribucion aleatoria).
+
+
+===============================================================================
+ [5]  PARAMETROS DE INTERACCION BINARIA kij
+===============================================================================
+
+ --- METODOLOGIA 1 (pseudo-monomero, Tabla 6): un unico kij solvente-copolimero
+     En pcsaft_vle.py:  KIJ_SOLVENTE_ALPHA = KIJ_SOLVENTE_BETA = kij  ;  KIJ_ALPHA_BETA = 0.0
+     (se incluye tambien la desviacion %DeltaP/P reportada por el paper)
+
+   Solvente  Copolimero    kij        %DeltaP/P (paper)   T [K]
+   --------  ----------    --------    -----------------   ----------------
+   ACE       PSBR5          0.0120          4.78           323.15
+   ACE       PSBR23         0.0122          3.04           323.15, 333.15
+   ACE       PSBR45         0.0130          5.19           323.15, 333.15
+   nC4OH     PVAE9          0.0230          4.05           353.15
+   nC4OH     PVAVC12       -0.0126          5.18           353.15
+   CHL       PVAE9         -0.1208          4.18           333.15
+   CHL       PVAE25        -0.0816          5.06           333.15
+   CHL       PVAE50        -0.0701          4.41           333.15
+   CHL       PVAE70        -0.0516          3.28           333.15
+   cC6       PSBR5          0.0118          3.66           333.15
+   cC6       PSBR23         0.0104          4.38           296.65, 333.15
+   cC6       PSBR41         0.0088          2.28           343.15
+   cC6       PSBR45         0.0101          4.31           296.65, 333.15
+   cC6       PVAE25        -0.1068          5.36           353.15
+   cC6       PVAE50        -0.0858          6.90           353.15
+   cC6       PVAE70        -0.0636          5.73           353.15
+   BZN       PSBR4.1        0.0202          2.44           298.15, 308.15
+   TOL       PSBR5          0.0080          4.07           308.15
+   TOL       PSBR23         0.0091          5.76           308.15
+   TOL       PSBR41         0.0098          3.71           343.15, 373.15
+   nC6       PSBR23         0.0086          3.92           343.15
+   nC6       PSBR45         0.0089          4.28           343.15
+   nC5       PSBR23         0.0072          3.68           333.15
+   nC5       PSBR45         0.0079          6.24           333.15
+
+   Desviacion global metodologia 1:  PC-SAFT = 4.41 %   (LGT = 10.10 %)
+
+
+ --- METODOLOGIA 2 (co-monomeros separados, Tabla 7)
+     En pcsaft_vle.py:
+        KIJ_SOLVENTE_ALPHA = kij_a   (solvente - monomero 1 / alpha)
+        KIJ_SOLVENTE_BETA  = kij_b   (solvente - monomero 2 / beta)
+        KIJ_ALPHA_BETA     = kiajb   (monomero 1 - monomero 2)
+     kij_a y kij_b son por FAMILIA; kiajb es por copolimero concreto.
+
+   Solvente  Familia   kij_a(alpha)  kij_b(beta)   kiajb por copolimero            %DeltaP/P
+   --------  -------   ------------  -----------   ------------------------------  ---------
+   ACE       PSBR       0.0121        0.0028       PSBR5=0.0003 PSBR23=0.0004          2.83
+                                                   PSBR45=0.0001
+   nC4OH     PVAE       0.0160        0.0131       PVAE9=-0.0010                       1.88
+   nC4OH     PVAVC     -0.0101       -0.0090       PVAVC12=0.0008                      1.63
+   CHL       PVAE      -0.0532        0.0003       PVAE9=0.0008  PVAE25=0.0005         2.59
+                                                   PVAE50=0.0003 PVAE70=0.0003
+   cC6       PSBR       0.0052        0.0012       PSBR5=0.0008 PSBR23=0.0006          2.11
+                                                   PSBR41=0.0005 PSBR45=0.0002
+   cC6       PVAE      -0.1085        0.0101       PVAE25=0.0011 PVAE50=0.0010         2.09
+                                                   PVAE70=0.0008
+   BZN       PSBR       0.0186        0.0109       PSBR41=0.0004                       1.23
+   TOL       PSBR       0.0082        0.0126       PSBR5=0.0014 PSBR23=0.0011          2.13
+                                                   PSBR41=0.0006
+   nC6       PSBR       0.0080        0.0091       PSBR23=0.0010 PSBR45=0.0008         1.84
+   nC5       PSBR       0.0066        0.0108       PSBR23=0.0013 PSBR45=0.0008         2.07
+
+   Desviacion global metodologia 2:  PC-SAFT = 2.04 %
+
+
+===============================================================================
+ [6]  RANGOS DE COMPOSICION Y TEMPERATURA  (Tabla 2)
+      Utiles para fijar W1_MIN, W1_MAX y TEMPERATURA_K en pcsaft_vle.py.
+      w1 = fraccion masica de solvente.
+===============================================================================
+ Solvente  Copolimero   w1_min    w1_max    T [K]
+ --------  ----------   -------   -------   ----------------
+ ACE       PSBR5        0.0003    0.1200    323.15
+ ACE       PSBR23       0.0090    0.2310    323.15, 333.15
+ ACE       PSBR45       0.0040    0.2580    323.15, 333.15
+ nC4OH     PVAE9        0.0060    0.0360    353.15
+ nC4OH     PVAVC12      0.0070    0.0460    353.15
+ CHL       PVAE9        0.0310    0.2530    333.15
+ CHL       PVAE25       0.0620    0.4810    333.15
+ CHL       PVAE50       0.0980    0.5520    333.15
+ CHL       PVAE70       0.0590    0.5730    333.15
+ cC6       PSBR5        0.0270    0.3230    333.15
+ cC6       PSBR23       0.0150    0.3280    296.65, 333.15
+ cC6       PSBR41       0.2169    0.4766    343.15
+ cC6       PSBR45       0.0110    0.3010    296.65, 333.15
+ cC6       PVAE25       0.0110    0.3690    353.15
+ cC6       PVAE50       0.0050    0.2870    353.15
+ cC6       PVAE70       0.0040    0.2420    353.15
+ BZN       PSBR4.1      0.0459    0.4297    298.15, 308.15
+ TOL       PSBR5        0.0430    0.5130    308.15
+ TOL       PSBR23       0.0290    0.0380    308.15
+ TOL       PSBR41       0.1832    0.5692    343.15, 373.15
+ nC6       PSBR23       0.0140    0.2620    343.15
+ nC6       PSBR45       0.0160    0.2490    343.15
+ nC5       PSBR23       0.0080    0.0890    333.15
+ nC5       PSBR45       0.0100    0.0340    333.15
+
+
+===============================================================================
+ [7]  EJEMPLO DE REEMPLAZO EN pcsaft_vle.py
+      Sistema:  cC6 (ciclohexano) + PSBR45  a  333.15 K,  metodologia 1.
+===============================================================================
+
+ TEMPERATURA_K   = 333.15
+ W1_MIN          = 0.011
+ W1_MAX          = 0.301
+ N_PUNTOS        = 25
+
+ SOLVENTE = {
+     "nombre":  "cC6 (ciclohexano)",
+     "MW":      84.16,
+     "m_MW":    0.029946,
+     "sigma":   3.8399,
+     "eps_k":   279.21,
+ }
+
+ COPOLIMERO = {
+     "nombre":        "PSBR45 (poly(styrene-co-butadiene), 45% estireno)",
+     "MW_copolimero": 600000.0,
+     "w_alpha":       0.45,
+     "alpha": {"nombre": "PS", "m_MW": 0.033238, "sigma": 3.5022, "eps_k": 320.14},
+     "beta":  {"nombre": "PB", "m_MW": 0.060552, "sigma": 2.9845, "eps_k": 240.21},
+ }
+
+ # metodologia 1 (Tabla 6):  kij = 0.0101
+ KIJ_SOLVENTE_ALPHA = 0.0101
+ KIJ_SOLVENTE_BETA  = 0.0101
+ KIJ_ALPHA_BETA     = 0.0000
+
+ # (si quieres metodologia 2 para cC6+PSBR45, Tabla 7:)
+ #   KIJ_SOLVENTE_ALPHA = 0.0052
+ #   KIJ_SOLVENTE_BETA  = 0.0012
+ #   KIJ_ALPHA_BETA     = 0.0002
+
+===============================================================================
+ FIN
+===============================================================================
