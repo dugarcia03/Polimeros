@@ -43,7 +43,8 @@ from scipy.optimize import brentq
 TEMPERATURA_K   = 323.15          # Temperatura del calculo [K]
 W1_MIN          = 0.001           # Fraccion masica de solvente minima
 W1_MAX          = 0.12            # Fraccion masica de solvente maxima
-N_PUNTOS        = 25              # Numero de puntos de la curva
+N_PUNTOS        = 80              # Numero de puntos de la curva ESTIMADA
+                                  # (mas puntos = curva mas suave y detallada)
 
 # ---- 2) SOLVENTE (componente 1) -------------------------------------------
 #   m/MW [1/mol], sigma [Angstrom], eps/k [K], y su peso molecular MW [g/mol].
@@ -99,7 +100,37 @@ KIJ_SOLVENTE_ALPHA = 0.0120
 KIJ_SOLVENTE_BETA  = 0.0120
 KIJ_ALPHA_BETA     = 0.0000
 
-# ---- 5) SALIDA ------------------------------------------------------------
+# ---- 5) DATOS EXPERIMENTALES (opcional) -----------------------------------
+#   Pega aqui los puntos experimentales del sistema que estes calculando.
+#   Se dibujan como PUNTOS sobre la curva estimada (que es solo linea).
+#   Formato: una tupla (w1, P) por fila, con
+#       w1 = fraccion MASICA de solvente
+#       P  = presion [MPa]   (OJO: en MPa, no en kPa)
+#
+#   Puedes copiar los valores desde 'datos_experimentales.txt':
+#     - Si ahi estan en kPa, divide entre 1000 para pasarlos a MPa.
+#       (p.ej. 36.3 kPa  ->  0.0363 MPa)
+#     - Si estan como presion reducida (P/Ps), multiplica por la presion de
+#       saturacion Ps del solvente [MPa] a esa T y pega el resultado.
+#
+#   Si dejas la lista vacia ( [] ), simplemente no se dibujan puntos.
+#
+#   Ejemplo (ACE + PSBR5 a 323.15 K, datos de Gupta & Prausnitz, pasados a MPa):
+DATOS_EXPERIMENTALES = [
+    # (w1,    P [MPa])
+    (0.003,  0.0137),
+    (0.023,  0.0265),
+    (0.040,  0.0363),
+    (0.056,  0.0415),
+    (0.067,  0.0453),
+    (0.078,  0.0511),
+    (0.080,  0.0533),
+    (0.091,  0.0552),
+    (0.115,  0.0596),
+    (0.120,  0.0613),
+]
+
+# ---- 6) SALIDA ------------------------------------------------------------
 ARCHIVO_FIGURA = "resultado_VLE.png"
 
 # =============================================================================
@@ -516,8 +547,19 @@ def main():
 
     # grafica
     fig, ax = plt.subplots(figsize=(7, 5))
-    ax.plot(w_ok, P_ok, "o-", color="#3b0a70", lw=2, ms=4,
-            label="PC-SAFT")
+
+    # curva ESTIMADA: solo linea (sin marcadores)
+    ax.plot(w_ok, P_ok, "-", color="#3b0a70", lw=2,
+            label="PC-SAFT (estimado)")
+
+    # datos EXPERIMENTALES: solo puntos (si hay)
+    if DATOS_EXPERIMENTALES:
+        w_exp = [d[0] for d in DATOS_EXPERIMENTALES]
+        P_exp = [d[1] for d in DATOS_EXPERIMENTALES]
+        ax.plot(w_exp, P_exp, "o", color="#d62728", ms=6,
+                markerfacecolor="white", markeredgewidth=1.4,
+                label="Experimental")
+
     ax.set_xlabel("Fraccion masica de solvente  $w_1$")
     ax.set_ylabel("Presion  $P$  (MPa)")
     ax.set_title("VLE PC-SAFT\n%s (1) + %s (2)   T=%.2f K"
