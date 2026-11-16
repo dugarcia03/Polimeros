@@ -525,8 +525,13 @@ def main():
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
-    fig.savefig(ARCHIVO_FIGURA, dpi=130)
-    print("\n  Figura guardada en: %s" % ARCHIVO_FIGURA)
+    # Guardar SIEMPRE en la misma carpeta donde esta este archivo .py
+    # (no en el directorio desde el que se lanza el comando).
+    import os
+    carpeta_script = os.path.dirname(os.path.abspath(__file__))
+    ruta_figura = os.path.join(carpeta_script, ARCHIVO_FIGURA)
+    fig.savefig(ruta_figura, dpi=130)
+    print("\n  Figura guardada en: %s" % ruta_figura)
 
 
 if __name__ == "__main__":
