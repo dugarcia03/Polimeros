@@ -66,7 +66,7 @@ FIG_DIR = os.path.dirname(os.path.abspath(__file__))
 METHODOLOGY = 1
 
 # Number of points for the smooth model curve in P vs w1 plots:
-N_CURVE_POINTS = 60
+N_CURVE_POINTS = 40
 
 # Pure-component validation solvents (nonpolar) and temperatures [K]:
 PURE_VALIDATION = [
@@ -147,19 +147,33 @@ def validate_pure():
 # ---------------------------------------------------------------------------
 
 def validate_full():
-    solvent, copolymer, T = FULL_VALIDATION
+    solvent, copolymer, T_focus = FULL_VALIDATION
     kij = KIJ_M1[solvent][copolymer]
-    w1, Pexp = load_data(solvent, copolymer, T)
+    # paper's cC6+PSBR45 entry spans all temperatures in Table 2 for that system
+    temps = None
+    for s, c, t, _ in SYSTEMS:
+        if s == solvent and c == copolymer:
+            temps = t
     print("=" * 74)
-    print(f"VALIDATION 2 - {solvent} + {copolymer} at {T} K "
-          f"(paper Methodology-1 %dP/P = 4.31)")
+    print(f"VALIDATION 2 - {solvent} + {copolymer} (paper Methodology-1 "
+          f"%dP/P = 4.31, kij = {kij})")
     print("=" * 74)
-    dP, Pcalc = vle.deviation_percent(w1, Pexp, T, solvent, copolymer, kij)
-    print(f"{'w1':>7s} {'Pexp[kPa]':>11s} {'Pcalc[kPa]':>12s} {'%dev':>7s}")
-    for i in range(len(w1)):
-        d = 100 * abs(Pcalc[i] - Pexp[i]) / Pexp[i]
-        print(f"{w1[i]:7.3f} {Pexp[i]*1e3:11.2f} {Pcalc[i]*1e3:12.3f} {d:7.2f}")
-    print(f"  --> mean %dP/P = {dP:.2f}   (published 4.31)\n")
+    total, npts = 0.0, 0
+    for T in temps:
+        w1, Pexp = load_data(solvent, copolymer, T)
+        if w1 is None:
+            continue
+        dP, Pcalc = vle.deviation_percent(w1, Pexp, T, solvent, copolymer, kij)
+        print(f"  T = {T} K   ({len(w1)} points)   mean %dP/P = {dP:.2f}")
+        print(f"  {'w1':>7s} {'Pexp[kPa]':>11s} {'Pcalc[kPa]':>12s} {'%dev':>7s}")
+        for i in range(len(w1)):
+            d = 100 * abs(Pcalc[i] - Pexp[i]) / Pexp[i]
+            print(f"  {w1[i]:7.3f} {Pexp[i]*1e3:11.2f} "
+                  f"{Pcalc[i]*1e3:12.3f} {d:7.2f}")
+        total += dP * len(w1)
+        npts += len(w1)
+    print(f"  --> combined %dP/P over all temperatures = {total/npts:.2f}   "
+          f"(published 4.31)\n")
 
 
 # ---------------------------------------------------------------------------
