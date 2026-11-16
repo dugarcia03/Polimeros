@@ -3,29 +3,32 @@
 """
 ===============================================================================
   VLE de mezclas COPOLIMERO + SOLVENTE con la EoS PC-SAFT
-  Reproduccion FIEL del articulo -- METODOLOGIA 2 (co-monomeros separados)
+  Reproduccion FIEL del articulo (metodologia 1: pseudo-monomero)
 ===============================================================================
 
     Arce, Mattedi & Aznar (2006), Fluid Phase Equilibria 246, 52-63.
     "Vapor-liquid equilibrium of copolymer + solvent mixtures ..."
 
-Este codigo implementa la SEGUNDA metodologia del paper (seccion 5, Tabla 7),
-que el propio articulo identifica como la mejor (desviacion global 2.04%):
+Este codigo sigue PASO POR PASO lo que dice el paper, sin anadir nada extra:
 
-  - El copolimero se trata como DOS tipos de segmento, alpha y beta (los dos
-    monomeros), NO como un unico pseudo-monomero.
-  - Cada segmento usa los parametros PC-SAFT del MONOMERO correspondiente
-    (Tabla 4b: STR, BTD, VA, ET, VC).
-  - Fracciones de segmento z_alpha, z_beta (Ec. 20) a partir de la composicion.
-  - Fracciones de enlace B_{a,a}, B_{a,b}, B_{b,b} (Tabla 3 / reglas Tabla 1),
-    que entran en el termino de cadena dura (Ec. 22).
-  - TRES parametros de interaccion binaria (Tabla 7):
-      kij_a  = solvente - monomero alpha
-      kij_b  = solvente - monomero beta
-      ki_ab  = monomero alpha - monomero beta  (dentro del copolimero)
-  - Condicion de equilibrio (Ec. 39): vapor = solvente puro.
-  - Constantes universales aik, bik importadas de constantes_pcsaft.py
-    (fuente externa: Gross & Sadowski 2001, ref. [23] del paper).
+  - PC-SAFT estandar de Gross & Sadowski (Ecs. 21-35 del paper).
+  - El copolimero se trata como UN pseudo-monomero (concepto usado en la
+    seccion 5 y Tabla 5 del paper para obtener la Tabla 6, metodologia 1).
+    Es decir, el copolimero es un UNICO segmento con los parametros PC-SAFT
+    (m/MW, sigma, eps/k) que el paper ya da en la Tabla 5.
+  - Como el pseudo-monomero es un solo tipo de segmento, NO hay fracciones de
+    enlace B ni termino alpha-beta: el copolimero es una cadena de un solo
+    tipo (igual que un homopolimero en PC-SAFT).
+  - Un unico parametro de interaccion binaria solvente-copolimero (kij),
+    tal como en la Tabla 6 (metodologia 1).
+  - Condicion de equilibrio (Ec. 39): el copolimero no es volatil, el vapor
+    es solvente puro:   x1 * phi_hat_1^L = phi_1^V(y1=1).
+  - Las constantes universales aik, bik son las de Gross & Sadowski (2001),
+    ref. [23] del paper (el paper remite a esa fuente, Ec. 31-32).
+
+NOTA: el 1-butanol (nC4OH) es autoasociante; el paper le anade un termino de
+asociacion (Ecs. 36-38). Ese termino NO se incluye aqui (por eso nC4OH quedaria
+aproximado). Para los demas solventes el modelo es el completo del paper.
 
 Dependencias:  numpy, scipy, matplotlib
 Uso:           python pcsaft_vle.py
@@ -39,88 +42,60 @@ import math
 import numpy as np
 from scipy.optimize import brentq
 
-# Constantes universales aik, bik (fuente externa citada por el paper, ref [23])
-from constantes_pcsaft import A_COEF, B_COEF
-
 
 # =============================================================================
 #  ////////////////////  PARAMETROS EDITABLES  //////////////////////////////
-#  Valores por defecto:  cC6 (ciclohexano) + PSBR45 a 333.15 K
-#  Solvente de Tabla 4b; monomeros de Tabla 4b; kij de Tabla 7 (metodologia 2).
+#  Valores por defecto:  ACETONA (1) + PSBR5 (2) a 323.15 K   (Fig. 2)
+#  Todos tomados del paper (Tabla 4b para el solvente, Tabla 5 para el
+#  pseudo-monomero del copolimero, Tabla 6 para kij).
 # =============================================================================
 
 # ---- 1) TEMPERATURA y rango de composicion --------------------------------
 TEMPERATURA_K = 333.15            # Temperatura [K]
 W1_MIN        = 0.011             # Fraccion masica de solvente minima
 W1_MAX        = 0.301             # Fraccion masica de solvente maxima
-N_PUNTOS      = 60                # Numero de puntos de la curva estimada
+N_PUNTOS      = 80                # Numero de puntos de la curva estimada
 
 # ---- 2) SOLVENTE (componente 1)  --  Tabla 4b -----------------------------
 #   m/MW [1/mol], sigma [Angstrom], eps/k [K], MW [g/mol].
 SOLVENTE = {
     "nombre": "cC6 (ciclohexano)",
-    "MW":     84.16,
-    "m_MW":   0.029946,
-    "sigma":  3.8399,
-    "eps_k":  279.21,
+    "MW":     84.16,              # g/mol
+    "m_MW":   0.029946,           # (m/MW) [1/mol]
+    "sigma":  3.8399,             # Angstrom
+    "eps_k":  279.21,             # eps/k [K]
 }
 
-# ---- 3) COPOLIMERO (componente 2) como DOS MONOMEROS  --  Tabla 4b + Tabla 3
-#   alpha = monomero 1 (el del % del nombre),  beta = monomero 2.
-#   Cada monomero con sus parametros PC-SAFT de la Tabla 4b.
-#   w_alpha = fraccion MASICA del monomero alpha (= numero del nombre / 100).
-#   MW = peso molecular total del copolimero (Tabla 3).
+# ---- 3) COPOLIMERO como PSEUDO-MONOMERO (componente 2)  --  Tabla 5 --------
+#   El paper representa el copolimero por UN pseudo-monomero con estos tres
+#   parametros PC-SAFT (Tabla 5). MW es el peso molecular total del copolimero
+#   (Tabla 3). El pseudo-monomero se trata como un solo tipo de segmento.
 COPOLIMERO = {
-    "nombre":  "PSBR45 (poly(styrene-co-butadiene), 45% estireno)",
-    "MW":      600000.0,          # g/mol (peso molecular total, Tabla 3)
-    "w_alpha": 0.45,              # fraccion masica del monomero alpha (estireno)
-
-    # --- monomero ALPHA (aqui: STR, estireno) -- Tabla 4b ---
-    "alpha": {
-        "nombre": "STR",
-        "MW":     104.14,         # g/mol del monomero
-        "m_MW":   0.024339,       # (m/MW) [1/mol]
-        "sigma":  3.9750,         # Angstrom
-        "eps_k":  318.70,         # eps/k [K]
-    },
-    # --- monomero BETA (aqui: BTD, butadieno) -- Tabla 4b ---
-    "beta": {
-        "nombre": "BTD",
-        "MW":     54.10,          # g/mol del monomero
-        "m_MW":   0.046033,       # (m/MW) [1/mol]
-        "sigma":  3.4508,         # Angstrom
-        "eps_k":  215.10,         # eps/k [K]
-    },
-
-    # --- Fracciones de enlace B (Tabla 3 del paper).  Pon None para que el
-    #     codigo las calcule con las reglas de la Tabla 1 (aleatorio).
-    #     Tabla 3 para PSBR45: Biaia=0.3707, Biajb=0.6293, Bjbjb=0.0000.
-    #     (el paper define alpha=estireno=el monomero del nombre)
-    "bonding": {"aa": 0.3707, "ab": 0.6293, "bb": 0.0000},
+    "nombre": "PSBR45 (poly(styrene-co-butadiene), 45% estireno)",
+    "MW":     600000.0,           # g/mol  (peso molecular total del copolimero)
+    "m_MW":   0.039562,           # (m/MW) del pseudo-monomero [1/mol]  (Tabla 5)
+    "sigma":  3.6072,             # sigma del pseudo-monomero [Angstrom] (Tabla 5)
+    "eps_k":  246.00,             # eps/k del pseudo-monomero [K]        (Tabla 5)
 }
 
-# ---- 4) PARAMETROS DE INTERACCION BINARIA (Tabla 7, metodologia 2) ---------
-#   Tres parametros:
-#     KIJ_A  = solvente - monomero alpha
-#     KIJ_B  = solvente - monomero beta
-#     KI_AB  = monomero alpha - monomero beta (dentro del copolimero)
-#   Valores por defecto: cC6+PSBR, familia PSBR (Tabla 7).
-KIJ_A = 0.0052                    # cC6-STR   (Tabla 7, kij_a familia PSBR)
-KIJ_B = 0.0012                    # cC6-BTD   (Tabla 7, kij_b familia PSBR)
-KI_AB = 0.0002                    # STR-BTD   (Tabla 7, kiajb de PSBR45)
+# ---- 4) PARAMETRO DE INTERACCION BINARIA kij  --  Tabla 6 (metodologia 1) --
+#   Un unico kij solvente-copolimero (Ec. 33: eps_12 = sqrt(e1 e2)(1-kij)).
+KIJ = 0.0101                      # cC6+PSBR45, Tabla 6
 
 # ---- 5) DATOS EXPERIMENTALES (opcional) -----------------------------------
-#   (w1, P[MPa]).  cC6+PSBR45 a 333.15 K (Gupta & Prausnitz [1]).
+#   Pega aqui los puntos del sistema (de datos_experimentales.txt), en MPa.
+#   Formato (w1, P[MPa]). Si kPa, divide entre 1000. Lista vacia = sin puntos.
+#   Ejemplo: cC6+PSBR45 a 333.15 K (Gupta & Prausnitz [1]), kPa -> MPa.
 DATOS_EXPERIMENTALES = [
-    (0.021, 0.0048),
-    (0.050, 0.0105),
-    (0.087, 0.0169),
-    (0.103, 0.0199),
-    (0.130, 0.0248),
-    (0.163, 0.0295),
-    (0.200, 0.0337),
-    (0.240, 0.0376),
-    (0.282, 0.0407),
+    (0.021,  0.0048),
+    (0.050,  0.0105),
+    (0.087,  0.0169),
+    (0.103,  0.0199),
+    (0.130,  0.0248),
+    (0.163,  0.0295),
+    (0.200,  0.0337),
+    (0.240,  0.0376),
+    (0.282,  0.0407),
 ]
 
 # ---- 6) SALIDA ------------------------------------------------------------
@@ -128,114 +103,89 @@ ARCHIVO_FIGURA = "resultado_VLE.png"
 
 # =============================================================================
 #  ///////////////  FIN DE PARAMETROS EDITABLES  ////////////////////////////
-#  Debajo de aqui no hay parametros del sistema; solo el motor PC-SAFT.
-#  Las constantes universales aik/bik estan en constantes_pcsaft.py.
+#
+#  A PARTIR DE AQUI NO HAY NINGUN PARAMETRO DEL SISTEMA.
+#  Todo lo que depende del solvente/copolimero/temperatura esta ARRIBA (1-6).
+#  Lo que sigue son CONSTANTES FIJAS (universales de PC-SAFT y de la fisica)
+#  y el codigo de calculo. NO hace falta editar nada de aqui para abajo.
 # =============================================================================
 
-KB = 1.380649e-23        # J/K (constante de Boltzmann)
+
+# -----------------------------------------------------------------------------
+#  CONSTANTES FIJAS -- NO EDITAR
+#  Constantes universales aik, bik importadas de constantes_pcsaft.py
+#  (fuente externa: Gross & Sadowski 2001, ref. [23] del paper). Universales.
+# -----------------------------------------------------------------------------
+from constantes_pcsaft import A_COEF, B_COEF
+
+KB = 1.380649e-23        # J/K (constante de Boltzmann) -- CONSTANTE FIJA, NO EDITAR
 
 
 # -----------------------------------------------------------------------------
-#  Segmento (un tipo): m = numero de segmentos aportado, sigma, eps/k
-# -----------------------------------------------------------------------------
-class Segmento:
-    def __init__(self, nombre, m, sigma, eps_k):
-        self.nombre = nombre
-        self.m = m
-        self.sigma = sigma
-        self.eps_k = eps_k
-
-
-# -----------------------------------------------------------------------------
-#  Componente: 1 segmento (solvente) o 2 segmentos (copolimero alpha+beta).
-#   z = fracciones de segmento (suman 1). m_tot = suma de m de sus segmentos.
-#   bonding = dict {"aa","ab","bb"} con las fracciones de enlace (solo copol.)
+#  Componente PC-SAFT: cadena de UN solo tipo de segmento
+#  (solvente o copolimero-pseudo-monomero). Caracterizado por m, sigma, eps/k.
 # -----------------------------------------------------------------------------
 class Componente:
-    def __init__(self, nombre, segmentos, z, bonding=None):
+    def __init__(self, nombre, m, sigma, eps_k):
         self.nombre = nombre
-        self.segs = segmentos
-        self.z = z
-        self.m = sum(s.m for s in segmentos)
-        self.bonding = bonding
+        self.m = m            # numero de segmentos por molecula
+        self.sigma = sigma    # Angstrom
+        self.eps_k = eps_k    # K
 
 
 # -----------------------------------------------------------------------------
-#  PC-SAFT para copolimeros (Ecs. 21-35 del paper, metodologia de 2 segmentos).
+#  PC-SAFT para una mezcla de componentes de un solo tipo de segmento cada uno
+#  (Ecs. 21-35 del paper). Sin asociacion.
 # -----------------------------------------------------------------------------
 class PCSAFT:
-    def __init__(self, componentes, kij):
-        """kij: dict con clave frozenset({nombreSeg1,nombreSeg2}) -> valor."""
+    def __init__(self, componentes, kij_matrix):
         self.c = componentes
         self.nc = len(componentes)
-        self.kij = kij or {}
+        self.kij = kij_matrix     # matriz nc x nc
 
-    # --- lista plana de (componente_idx, segmento) para recorrer segmentos ---
-    def _segmentos(self):
-        for i, comp in enumerate(self.c):
-            for si, seg in enumerate(comp.segs):
-                yield i, si, seg
-
-    def _kij(self, na, nb):
-        if na == nb:
-            return 0.0
-        return self.kij.get(frozenset((na, nb)), 0.0)
-
-    def d_seg(self, seg, T):
-        """Diametro de segmento dependiente de T (Ec. 26)."""
-        return seg.sigma * (1.0 - 0.12 * math.exp(-3.0 * seg.eps_k / T))
+    def d_i(self, i, T):
+        """Diametro dependiente de T (Ec. 26)."""
+        s = self.c[i]
+        return s.sigma * (1.0 - 0.12 * math.exp(-3.0 * s.eps_k / T))
 
     def m_bar(self, x):
-        """Ec. 24: m promedio = sum_i x_i m_i."""
+        """Ec. 24: m promedio."""
         return sum(x[i] * self.c[i].m for i in range(self.nc))
 
     def zeta(self, x, rho, T):
-        """Ec. 25: zeta_k = pi/6 rho sum_i x_i m_i sum_s z_is d_is^k."""
+        """Ec. 25: zeta_k, k=0..3.  rho en 1/A^3."""
         z = [0.0, 0.0, 0.0, 0.0]
         for k in range(4):
             s = 0.0
-            for i, comp in enumerate(self.c):
-                for si, seg in enumerate(comp.segs):
-                    s += x[i] * comp.m * comp.z[si] * self.d_seg(seg, T) ** k
+            for i in range(self.nc):
+                s += x[i] * self.c[i].m * self.d_i(i, T) ** k
             z[k] = math.pi / 6.0 * rho * s
         return z
 
-    # ---- esfera dura ----
+    # ---- hard-sphere (Ec. estandar PC-SAFT) ----
     def a_hs(self, z):
         z0, z1, z2, z3 = z
         return (1.0 / z0) * (3.0 * z1 * z2 / (1.0 - z3)
                              + z2 ** 3 / (z3 * (1.0 - z3) ** 2)
                              + (z2 ** 3 / z3 ** 2 - z0) * math.log(1.0 - z3))
 
-    def g_hs(self, di, dj, z):
+    def g_hs(self, i, j, z, T):
         """Funcion de distribucion radial (Ec. 23)."""
         z2, z3 = z[2], z[3]
+        di, dj = self.d_i(i, T), self.d_i(j, T)
         dd = di * dj / (di + dj)
         return (1.0 / (1.0 - z3)
                 + dd * 3.0 * z2 / (1.0 - z3) ** 2
                 + dd ** 2 * 2.0 * z2 ** 2 / (1.0 - z3) ** 3)
 
-    # ---- cadena dura (Ec. 22) con fracciones de enlace B ----
+    # ---- hard-chain (Ec. 22) ----
+    #   Como cada componente es un solo tipo de segmento, B_{aa}=1 y el
+    #   termino se reduce a  -sum xi (mi-1) ln g^hs_ii  (igual que homopolimero).
     def a_hc(self, x, rho, T):
         z = self.zeta(x, rho, T)
         a = self.m_bar(x) * self.a_hs(z)
-        for i, comp in enumerate(self.c):
-            if len(comp.segs) == 1:            # solvente: cadena homonuclear
-                d = self.d_seg(comp.segs[0], T)
-                a -= x[i] * (comp.m - 1.0) * math.log(self.g_hs(d, d, z))
-            else:                              # copolimero: dos segmentos a,b
-                da = self.d_seg(comp.segs[0], T)
-                db = self.d_seg(comp.segs[1], T)
-                B = comp.bonding
-                if B is None:
-                    g = self.g_hs(da, db, z)
-                    a -= x[i] * (comp.m - 1.0) * math.log(g)
-                else:
-                    # Ec. 22: sum sobre pares alpha-beta ponderado por B
-                    term = (B["aa"] * math.log(self.g_hs(da, da, z))
-                            + B["ab"] * math.log(self.g_hs(da, db, z))
-                            + B["bb"] * math.log(self.g_hs(db, db, z)))
-                    a -= x[i] * (comp.m - 1.0) * term
+        for i in range(self.nc):
+            a -= x[i] * (self.c[i].m - 1.0) * math.log(self.g_hs(i, i, z, T))
         return a
 
     # ---- dispersion (Ecs. 27-32) ----
@@ -255,30 +205,27 @@ class PCSAFT:
         return I1, I2
 
     def _C1(self, mb, eta):
+        # Ec. 30
         return 1.0 / (1.0
                       + mb * (8.0 * eta - 2.0 * eta ** 2) / (1.0 - eta) ** 4
                       + (1.0 - mb) * (20.0 * eta - 27.0 * eta ** 2
                                       + 12.0 * eta ** 3 - 2.0 * eta ** 4)
                       / ((1.0 - eta) * (2.0 - eta)) ** 2)
 
-    def _eps_sigma(self, sa, sb):
-        """Ec. 33: reglas de combinacion con kij entre los dos segmentos."""
-        sig = 0.5 * (sa.sigma + sb.sigma)
-        eps = math.sqrt(sa.eps_k * sb.eps_k) * (1.0 - self._kij(sa.nombre, sb.nombre))
+    def _eps_sigma_cross(self, i, j):
+        """Ec. 33: reglas de combinacion."""
+        sig = 0.5 * (self.c[i].sigma + self.c[j].sigma)
+        eps = math.sqrt(self.c[i].eps_k * self.c[j].eps_k) * (1.0 - self.kij[i][j])
         return eps, sig
 
     def _m2es(self, x, T, power):
-        """Doble suma sobre segmentos (Ecs. 28-29):
-        sum_i sum_j xi xj mi mj sum_a sum_b zia zjb (eps_ab/kT)^p sigma_ab^3."""
+        """sum_i sum_j xi xj mi mj (eps_ij/kT)^power sigma_ij^3."""
         s = 0.0
-        for i, ci in enumerate(self.c):
-            for j, cj in enumerate(self.c):
-                for ai, sa in enumerate(ci.segs):
-                    for bj, sb in enumerate(cj.segs):
-                        eps, sig = self._eps_sigma(sa, sb)
-                        s += (x[i] * x[j] * ci.m * cj.m
-                              * ci.z[ai] * cj.z[bj]
-                              * (eps / T) ** power * sig ** 3)
+        for i in range(self.nc):
+            for j in range(self.nc):
+                eps, sig = self._eps_sigma_cross(i, j)
+                s += (x[i] * x[j] * self.c[i].m * self.c[j].m
+                      * (eps / T) ** power * sig ** 3)
         return s
 
     def a_disp(self, x, rho, T):
@@ -286,13 +233,13 @@ class PCSAFT:
         eta = self.zeta(x, rho, T)[3]
         I1, I2 = self._I1_I2(mb, eta)
         C1 = self._C1(mb, eta)
-        a1 = -2.0 * math.pi * rho * I1 * self._m2es(x, T, 1)       # Ec. 28
-        a2 = -math.pi * rho * mb * C1 * I2 * self._m2es(x, T, 2)   # Ec. 29
+        a1 = -2.0 * math.pi * rho * I1 * self._m2es(x, T, 1)   # Ec. 28
+        a2 = -math.pi * rho * mb * C1 * I2 * self._m2es(x, T, 2)  # Ec. 29
         return a1 + a2
 
     # ---- residual, Z, presion, fugacidad ----
     def a_res(self, x, rho, T):
-        return self.a_hc(x, rho, T) + self.a_disp(x, rho, T)       # Ec. 21
+        return self.a_hc(x, rho, T) + self.a_disp(x, rho, T)     # Ec. 21
 
     def Z(self, x, rho, T):
         drho = 1e-6 * rho
@@ -319,75 +266,19 @@ class PCSAFT:
 
 
 # -----------------------------------------------------------------------------
-#  Construccion de componentes a partir del bloque de parametros
+#  Construccion a partir del bloque de parametros
 # -----------------------------------------------------------------------------
 def construir_solvente():
     s = SOLVENTE
-    m = s["m_MW"] * s["MW"]
-    seg = Segmento("SOLV", m, s["sigma"], s["eps_k"])
-    return Componente(s["nombre"], [seg], [1.0])
-
-
-def _fracciones_molares_monomero():
-    """Fraccion MOLAR de cada monomero (para fracciones de segmento)."""
-    c = COPOLIMERO
-    wA = c["w_alpha"]; wB = 1.0 - wA
-    nA = wA / c["alpha"]["MW"]; nB = wB / c["beta"]["MW"]
-    return nA / (nA + nB), nB / (nA + nB)
+    m = s["m_MW"] * s["MW"]                     # m = (m/MW)*MW
+    return Componente(s["nombre"], m, s["sigma"], s["eps_k"])
 
 
 def construir_copolimero():
     c = COPOLIMERO
-    MWc = c["MW"]
-    wA = c["w_alpha"]; wB = 1.0 - wA
-    # Ec. 18: m_{i,s} = w_{i,s} * MW_copol * (m/MW)_s   (monomeros)
-    mA = wA * MWc * c["alpha"]["m_MW"]
-    mB = wB * MWc * c["beta"]["m_MW"]
-    m_tot = mA + mB
-    zA = mA / m_tot                           # Ec. 20: fraccion de segmento
-    zB = mB / m_tot
-    segA = Segmento(c["alpha"]["nombre"], mA, c["alpha"]["sigma"], c["alpha"]["eps_k"])
-    segB = Segmento(c["beta"]["nombre"],  mB, c["beta"]["sigma"],  c["beta"]["eps_k"])
-    # Fracciones de enlace: usar las de la Tabla 3 si se dieron; si no, calcular.
-    bonding = c.get("bonding")
-    if bonding is None:
-        bonding = _fracciones_enlace(zA, zB, m_tot)
-    comp = Componente(c["nombre"], [segA, segB], [zA, zB], bonding)
-    comp._zA, comp._zB = zA, zB
-    return comp
-
-
-def _fracciones_enlace(zA, zB, m):
-    """Fracciones de enlace B para copolimero aleatorio (Tabla 1 del paper).
-    alpha = monomero 1, beta = monomero 2.  (z_beta vs z_alpha deciden el caso)."""
-    if m <= 1:
-        return None
-    if zB < zA:
-        B_ab = 2.0 * (zB * m) / (m - 1.0)
-        B_aa = 1.0 - B_ab
-        B_bb = 0.0
-    elif zB > zA:
-        B_ab = 2.0 * (zA * m) / (m - 1.0)
-        B_bb = 1.0 - B_ab
-        B_aa = 0.0
-    else:                                     # alternante
-        B_ab = 1.0; B_aa = 0.0; B_bb = 0.0
-    B_ab = min(max(B_ab, 0.0), 1.0)
-    return {"aa": max(B_aa, 0.0), "ab": B_ab, "bb": max(B_bb, 0.0)}
-
-
-def construir_kij():
-    """Diccionario de kij por par de segmentos (Tabla 7):
-       solvente-alpha, solvente-beta, alpha-beta."""
-    solv = "SOLV"
-    na = COPOLIMERO["alpha"]["nombre"]
-    nb = COPOLIMERO["beta"]["nombre"]
-    d = {}
-    d[frozenset((solv, na))] = KIJ_A
-    d[frozenset((solv, nb))] = KIJ_B
-    if na != nb:
-        d[frozenset((na, nb))] = KI_AB
-    return d
+    m = c["m_MW"] * c["MW"]                     # Ec.18-19 con pseudo-monomero:
+                                               # m_copol = (m/MW)_psm * MW_copol
+    return Componente(c["nombre"], m, c["sigma"], c["eps_k"])
 
 
 # -----------------------------------------------------------------------------
@@ -406,11 +297,11 @@ def w1_a_x1(w1):
 # -----------------------------------------------------------------------------
 def _resolver_densidad(model, x, T, P_pa, fase):
     suma = 0.0
-    for i, comp in enumerate(model.c):
-        for si, seg in enumerate(comp.segs):
-            suma += x[i] * comp.m * comp.z[si] * model.d_seg(seg, T) ** 3
+    for i in range(model.nc):
+        suma += x[i] * model.c[i].m * model.d_i(i, T) ** 3
     coef = math.pi / 6.0 * suma
     rho_de_eta = lambda eta: eta / coef
+
     if fase == "liq":
         etas = [0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1,
                 0.05, 0.02, 0.01, 1e-3, 1e-4]
@@ -448,7 +339,7 @@ def presion_de_burbuja(model_liq, model_vap, T, x1):
         if rv is None:
             return None
         lnphi_v = model_vap.ln_phi([1.0], rv, T)[0]
-        return (math.log(x1) + lnphi_l) - lnphi_v          # Ec. 39
+        return (math.log(x1) + lnphi_l) - lnphi_v      # Ec. 39
 
     P_grid = np.logspace(math.log10(1.0e2), math.log10(2.0e6), 28)
     prev_P = prev_f = None
@@ -467,7 +358,7 @@ def presion_de_burbuja(model_liq, model_vap, T, x1):
     lo, hi = bracket
     try:
         return brentq(lambda P: residual(P), lo, hi,
-                      xtol=1e-2, rtol=1e-9, maxiter=60) / 1e6
+                      xtol=1e-2, rtol=1e-9, maxiter=60) / 1e6   # MPa
     except Exception:
         return 0.5 * (lo + hi) / 1e6
 
@@ -482,20 +373,19 @@ def main():
 
     solv = construir_solvente()
     cop = construir_copolimero()
-    kij = construir_kij()
-    model_liq = PCSAFT([solv, cop], kij)
-    model_vap = PCSAFT([solv], {})
+    kij_m = [[0.0, KIJ], [KIJ, 0.0]]
+    model_liq = PCSAFT([solv, cop], kij_m)
+    model_vap = PCSAFT([solv], [[0.0]])
 
     T = TEMPERATURA_K
     ws = np.linspace(max(W1_MIN, 1e-4), W1_MAX, N_PUNTOS)
 
     print("=" * 66)
-    print("  VLE PC-SAFT  --  METODOLOGIA 2 (co-monomeros separados)")
+    print("  VLE PC-SAFT (pseudo-monomero, metodologia 1 del paper)")
     print("  %s (1) + %s (2)" % (SOLVENTE["nombre"], COPOLIMERO["nombre"]))
-    print("  T = %.2f K" % T)
-    print("  kij_a(solv-%s)=%.4f  kij_b(solv-%s)=%.4f  ki_ab=%.4f"
-          % (cop.segs[0].nombre, KIJ_A, cop.segs[1].nombre, KIJ_B, KI_AB))
-    print("  z_alpha=%.4f  z_beta=%.4f  B=%s" % (cop.z[0], cop.z[1], cop.bonding))
+    print("  T = %.2f K   kij = %.4f" % (T, KIJ))
+    print("  m_solvente = %.3f   m_copolimero(pseudo) = %.1f"
+          % (solv.m, cop.m))
     print("=" * 66)
     print("  %10s  %12s" % ("w1", "P (MPa)"))
 
@@ -516,7 +406,11 @@ def main():
         print("\n[!] No se obtuvieron puntos. Revisa los parametros.")
         return
 
+    # ---- desviacion de presion %DeltaP/P (Ec. 40) si hay experimentales ----
     if DATOS_EXPERIMENTALES:
+        import numpy as _np
+        wE = _np.array([d[0] for d in DATOS_EXPERIMENTALES])
+        PE = _np.array([d[1] for d in DATOS_EXPERIMENTALES])
         s = 0.0; n = 0
         for w1, Pexp in DATOS_EXPERIMENTALES:
             x1 = w1_a_x1(w1)
@@ -526,8 +420,9 @@ def main():
         if n:
             print("\n  %%DeltaP/P (Ec. 40) = %.2f %%   (np=%d)" % (100 * s / n, n))
 
+    # ---- grafica ----
     fig, ax = plt.subplots(figsize=(7, 5))
-    ax.plot(w_ok, P_ok, "-", color="#3b0a70", lw=2, label="PC-SAFT (metod. 2)")
+    ax.plot(w_ok, P_ok, "-", color="#3b0a70", lw=2, label="PC-SAFT (estimado)")
     if DATOS_EXPERIMENTALES:
         ax.plot([d[0] for d in DATOS_EXPERIMENTALES],
                 [d[1] for d in DATOS_EXPERIMENTALES],
@@ -535,7 +430,7 @@ def main():
                 markeredgewidth=1.4, label="Experimental")
     ax.set_xlabel("Fraccion masica de solvente  $w_1$")
     ax.set_ylabel("Presion  $P$  (MPa)")
-    ax.set_title("VLE PC-SAFT (metodologia 2)\n%s (1) + %s (2)   T=%.2f K"
+    ax.set_title("VLE PC-SAFT\n%s (1) + %s (2)   T=%.2f K"
                  % (SOLVENTE["nombre"], COPOLIMERO["nombre"], T))
     ax.grid(True, alpha=0.3)
     ax.legend()
