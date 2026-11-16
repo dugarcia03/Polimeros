@@ -51,19 +51,19 @@ from scipy.optimize import brentq
 # =============================================================================
 
 # ---- 1) TEMPERATURA y rango de composicion --------------------------------
-TEMPERATURA_K = 323.15            # Temperatura [K]
-W1_MIN        = 0.001             # Fraccion masica de solvente minima
-W1_MAX        = 0.12              # Fraccion masica de solvente maxima
+TEMPERATURA_K = 333.15            # Temperatura [K]
+W1_MIN        = 0.011             # Fraccion masica de solvente minima
+W1_MAX        = 0.301             # Fraccion masica de solvente maxima
 N_PUNTOS      = 80                # Numero de puntos de la curva estimada
 
 # ---- 2) SOLVENTE (componente 1)  --  Tabla 4b -----------------------------
 #   m/MW [1/mol], sigma [Angstrom], eps/k [K], MW [g/mol].
 SOLVENTE = {
-    "nombre": "ACE (acetona)",
-    "MW":     58.08,              # g/mol
-    "m_MW":   0.037879,           # (m/MW) [1/mol]
-    "sigma":  3.4956,             # Angstrom
-    "eps_k":  272.26,             # eps/k [K]
+    "nombre": "cC6 (ciclohexano)",
+    "MW":     84.16,              # g/mol
+    "m_MW":   0.029946,           # (m/MW) [1/mol]
+    "sigma":  3.8399,             # Angstrom
+    "eps_k":  279.21,             # eps/k [K]
 }
 
 # ---- 3) COPOLIMERO como PSEUDO-MONOMERO (componente 2)  --  Tabla 5 --------
@@ -71,32 +71,31 @@ SOLVENTE = {
 #   parametros PC-SAFT (Tabla 5). MW es el peso molecular total del copolimero
 #   (Tabla 3). El pseudo-monomero se trata como un solo tipo de segmento.
 COPOLIMERO = {
-    "nombre": "PSBR5 (poly(styrene-co-butadiene), 5% estireno)",
-    "MW":     100000.0,           # g/mol  (peso molecular total del copolimero)
-    "m_MW":   0.045456,           # (m/MW) del pseudo-monomero [1/mol]  (Tabla 5)
-    "sigma":  3.4647,             # sigma del pseudo-monomero [Angstrom] (Tabla 5)
-    "eps_k":  217.86,             # eps/k del pseudo-monomero [K]        (Tabla 5)
+    "nombre": "PSBR45 (poly(styrene-co-butadiene), 45% estireno)",
+    "MW":     600000.0,           # g/mol  (peso molecular total del copolimero)
+    "m_MW":   0.039562,           # (m/MW) del pseudo-monomero [1/mol]  (Tabla 5)
+    "sigma":  3.6072,             # sigma del pseudo-monomero [Angstrom] (Tabla 5)
+    "eps_k":  246.00,             # eps/k del pseudo-monomero [K]        (Tabla 5)
 }
 
 # ---- 4) PARAMETRO DE INTERACCION BINARIA kij  --  Tabla 6 (metodologia 1) --
 #   Un unico kij solvente-copolimero (Ec. 33: eps_12 = sqrt(e1 e2)(1-kij)).
-KIJ = 0.0120                      # ACE+PSBR5, Tabla 6
+KIJ = 0.0101                      # cC6+PSBR45, Tabla 6
 
 # ---- 5) DATOS EXPERIMENTALES (opcional) -----------------------------------
 #   Pega aqui los puntos del sistema (de datos_experimentales.txt), en MPa.
 #   Formato (w1, P[MPa]). Si kPa, divide entre 1000. Lista vacia = sin puntos.
-#   Ejemplo: ACE+PSBR5 a 323.15 K (Gupta & Prausnitz [1]).
+#   Ejemplo: cC6+PSBR45 a 333.15 K (Gupta & Prausnitz [1]), kPa -> MPa.
 DATOS_EXPERIMENTALES = [
-    (0.003,  0.0137),
-    (0.023,  0.0265),
-    (0.040,  0.0363),
-    (0.056,  0.0415),
-    (0.067,  0.0453),
-    (0.078,  0.0511),
-    (0.080,  0.0533),
-    (0.091,  0.0552),
-    (0.115,  0.0596),
-    (0.120,  0.0613),
+    (0.021,  0.0048),
+    (0.050,  0.0105),
+    (0.087,  0.0169),
+    (0.103,  0.0199),
+    (0.130,  0.0248),
+    (0.163,  0.0295),
+    (0.200,  0.0337),
+    (0.240,  0.0376),
+    (0.282,  0.0407),
 ]
 
 # ---- 6) SALIDA ------------------------------------------------------------
