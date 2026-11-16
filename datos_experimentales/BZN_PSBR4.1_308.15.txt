@@ -1,0 +1,17 @@
+# Benzene(1) + Poly(4.1% styrene-co-butadiene) at T = 308.15 K
+# Source: Kang et al., J. Chem. Eng. Data 47 (2002) 788-791 [ref 35], Table 2
+# Reduced pressures p/ps converted to MPa using EXTERNAL
+# pure-solvent Psat (Antoine, see datos_externos.py).
+# Psat used = 0.01976 MPa
+# w1 = solvent mass fraction ; P in MPa
+0.0471, 0.003946
+0.0756, 0.005934
+0.1044, 0.007782
+0.1250, 0.008770
+0.1442, 0.009460
+0.1959, 0.011778
+0.2289, 0.012837
+0.2637, 0.014137
+0.3098, 0.015443
+0.3742, 0.016495
+0.4297, 0.017295

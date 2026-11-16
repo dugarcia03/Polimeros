@@ -1,0 +1,14 @@
+# Pentane(1) + Poly(45% styrene-co-butadiene) at T = 333.15 K (60 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# NOTE: Arce Table 2 lists np=6 for this system but Gupta Table 2 reports 8
+#       points spanning the same w1 range (0.010-0.034). All 8 are kept here;
+#       the paper does not state which 6 subset was used. See report.
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.010, 0.0228
+0.013, 0.0468
+0.019, 0.0655
+0.022, 0.0840
+0.022, 0.0973
+0.026, 0.1133
+0.027, 0.1248
+0.034, 0.1376

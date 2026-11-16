@@ -1,0 +1,16 @@
+# Acetone(1) + Poly(23% styrene-co-butadiene) at T = 323.15 K (50 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.024, 0.0265
+0.049, 0.0363
+0.061, 0.0415
+0.071, 0.0453
+0.075, 0.0465
+0.058, 0.0473
+0.085, 0.0511
+0.088, 0.0523
+0.091, 0.0533
+0.100, 0.0552
+0.125, 0.0596
+0.120, 0.0597
+0.130, 0.0613

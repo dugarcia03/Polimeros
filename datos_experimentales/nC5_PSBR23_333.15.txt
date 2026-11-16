@@ -1,0 +1,12 @@
+# Pentane(1) + Poly(23% styrene-co-butadiene) at T = 333.15 K (60 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.008, 0.0228
+0.016, 0.0360
+0.021, 0.0468
+0.033, 0.0655
+0.046, 0.0840
+0.055, 0.0973
+0.070, 0.1133
+0.078, 0.1248
+0.089, 0.1376

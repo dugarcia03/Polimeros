@@ -1,0 +1,12 @@
+# Cyclohexane(1) + Poly(25% vinyl acetate-co-ethylene) at T = 353.15 K (80 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.011, 0.0075
+0.037, 0.0144
+0.074, 0.0265
+0.140, 0.0397
+0.228, 0.0549
+0.238, 0.0555
+0.277, 0.0607
+0.300, 0.0641
+0.369, 0.0704

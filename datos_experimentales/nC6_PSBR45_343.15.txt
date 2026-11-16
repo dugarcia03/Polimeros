@@ -1,0 +1,9 @@
+# Hexane(1) + Poly(45% styrene-co-butadiene) at T = 343.15 K (70 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.016, 0.0139
+0.038, 0.0273
+0.061, 0.0385
+0.103, 0.0488
+0.155, 0.0615
+0.249, 0.0752

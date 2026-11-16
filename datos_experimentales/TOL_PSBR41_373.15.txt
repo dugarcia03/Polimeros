@@ -1,0 +1,14 @@
+# Toluene(1) + Poly(41% styrene-co-butadiene) at T = 373.15 K
+# Source: Wohlfarth, Macromol. Chem. Phys. 198 (1997) 2689-2714 [ref 34], Table 5
+# Reduced pressures P/Psat converted to MPa using EXTERNAL
+# pure-solvent Psat (Antoine, see datos_externos.py).
+# Psat used = 0.07417 MPa
+# w1 = solvent mass fraction ; P in MPa
+0.1832, 0.035930
+0.2299, 0.042309
+0.2613, 0.046092
+0.3030, 0.050684
+0.3681, 0.056462
+0.4274, 0.060660
+0.4937, 0.064465
+0.5692, 0.067818

@@ -1,0 +1,10 @@
+# 1-Butanol(1) + Poly(12% vinyl acetate-co-vinyl chloride) at T = 353.15 K (80 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.007, 0.0027
+0.016, 0.0052
+0.022, 0.0080
+0.033, 0.0108
+0.040, 0.0123
+0.044, 0.0139
+0.046, 0.0152

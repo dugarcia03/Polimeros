@@ -1,0 +1,12 @@
+# Chloroform(1) + Poly(9% vinyl acetate-co-ethylene) at T = 333.15 K (60 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.031, 0.0140
+0.067, 0.0281
+0.104, 0.0401
+0.147, 0.0532
+0.168, 0.0584
+0.196, 0.0661
+0.216, 0.0723
+0.235, 0.0792
+0.253, 0.0871

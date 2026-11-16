@@ -1,0 +1,9 @@
+# Toluene(1) + Poly(5% styrene-co-butadiene) at T = 308.15 K (35 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.043, 0.00093
+0.099, 0.00208
+0.184, 0.00304
+0.319, 0.00436
+0.416, 0.00483
+0.513, 0.00548

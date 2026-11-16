@@ -1,0 +1,12 @@
+# Cyclohexane(1) + Poly(45% styrene-co-butadiene) at T = 333.15 K (60 C)
+# Source: Gupta & Prausnitz, J. Chem. Eng. Data 40 (1995) 784-791 [ref 1]
+# w1 = solvent mass fraction ; P in MPa (original kPa x 0.001)
+0.021, 0.0048
+0.050, 0.0105
+0.087, 0.0169
+0.103, 0.0199
+0.130, 0.0248
+0.163, 0.0295
+0.200, 0.0337
+0.240, 0.0376
+0.282, 0.0407
