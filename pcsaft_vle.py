@@ -2,122 +2,91 @@
 # -*- coding: utf-8 -*-
 """
 ===============================================================================
-  VLE de mezclas COPOLIMERO + SOLVENTE con la EoS PC-SAFT (para copolimeros)
+  VLE de mezclas COPOLIMERO + SOLVENTE con la EoS PC-SAFT
+  Reproduccion FIEL del articulo (metodologia 1: pseudo-monomero)
 ===============================================================================
 
-Reproduce el modelado del articulo:
     Arce, Mattedi & Aznar (2006), Fluid Phase Equilibria 246, 52-63.
     "Vapor-liquid equilibrium of copolymer + solvent mixtures ..."
 
-Archivo UNICO y autocontenido. Calcula el equilibrio liquido-vapor
-(presion P vs fraccion masica de solvente w1) para UNA sola combinacion
-solvente + copolimero, la que definas en el BLOQUE DE PARAMETROS de abajo.
+Este codigo sigue PASO POR PASO lo que dice el paper, sin anadir nada extra:
 
-Para cambiar de sistema: edita a mano los valores de la seccion
-"PARAMETROS EDITABLES". Ahi eliges el solvente, el copolimero (sus dos
-monomeros / homopolimeros), la composicion, la temperatura, el rango de w1 y
-los parametros PC-SAFT (m/MW, sigma, eps/k) y de interaccion binaria (kij).
+  - PC-SAFT estandar de Gross & Sadowski (Ecs. 21-35 del paper).
+  - El copolimero se trata como UN pseudo-monomero (concepto usado en la
+    seccion 5 y Tabla 5 del paper para obtener la Tabla 6, metodologia 1).
+    Es decir, el copolimero es un UNICO segmento con los parametros PC-SAFT
+    (m/MW, sigma, eps/k) que el paper ya da en la Tabla 5.
+  - Como el pseudo-monomero es un solo tipo de segmento, NO hay fracciones de
+    enlace B ni termino alpha-beta: el copolimero es una cadena de un solo
+    tipo (igual que un homopolimero en PC-SAFT).
+  - Un unico parametro de interaccion binaria solvente-copolimero (kij),
+    tal como en la Tabla 6 (metodologia 1).
+  - Condicion de equilibrio (Ec. 39): el copolimero no es volatil, el vapor
+    es solvente puro:   x1 * phi_hat_1^L = phi_1^V(y1=1).
+  - Las constantes universales aik, bik son las de Gross & Sadowski (2001),
+    ref. [23] del paper (el paper remite a esa fuente, Ec. 31-32).
+
+NOTA: el 1-butanol (nC4OH) es autoasociante; el paper le anade un termino de
+asociacion (Ecs. 36-38). Ese termino NO se incluye aqui (por eso nC4OH quedaria
+aproximado). Para los demas solventes el modelo es el completo del paper.
 
 Dependencias:  numpy, scipy, matplotlib
-    pip install numpy scipy matplotlib
-
-Uso:
-    python pcsaft_vle.py
-Genera la figura 'resultado_VLE.png' e imprime la tabla P(w1) en pantalla.
+Uso:           python pcsaft_vle.py
 ===============================================================================
 """
+
+import os
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
 
 import math
 import numpy as np
 from scipy.optimize import brentq
 
+
 # =============================================================================
 #  ////////////////////  PARAMETROS EDITABLES  //////////////////////////////
-#  Cambia SOLO los valores de este bloque para calcular otra combinacion.
-#  Los valores por defecto corresponden a:  ACETONA (1) + PSBR5 (2) a 323.15 K
-#  (poly(styrene-co-butadiene) con 5% en peso de estireno).
-#  Todos los parametros estan tomados del paper (Tablas 4b, 6).
+#  Valores por defecto:  ACETONA (1) + PSBR5 (2) a 323.15 K   (Fig. 2)
+#  Todos tomados del paper (Tabla 4b para el solvente, Tabla 5 para el
+#  pseudo-monomero del copolimero, Tabla 6 para kij).
 # =============================================================================
 
 # ---- 1) TEMPERATURA y rango de composicion --------------------------------
-TEMPERATURA_K   = 323.15          # Temperatura del calculo [K]
-W1_MIN          = 0.001           # Fraccion masica de solvente minima
-W1_MAX          = 0.12            # Fraccion masica de solvente maxima
-N_PUNTOS        = 80              # Numero de puntos de la curva ESTIMADA
-                                  # (mas puntos = curva mas suave y detallada)
+TEMPERATURA_K = 323.15            # Temperatura [K]
+W1_MIN        = 0.001             # Fraccion masica de solvente minima
+W1_MAX        = 0.12              # Fraccion masica de solvente maxima
+N_PUNTOS      = 80                # Numero de puntos de la curva estimada
 
-# ---- 2) SOLVENTE (componente 1) -------------------------------------------
-#   m/MW [1/mol], sigma [Angstrom], eps/k [K], y su peso molecular MW [g/mol].
-#   (Tabla 4b del paper para m/MW, sigma, eps_k).
+# ---- 2) SOLVENTE (componente 1)  --  Tabla 4b -----------------------------
+#   m/MW [1/mol], sigma [Angstrom], eps/k [K], MW [g/mol].
 SOLVENTE = {
-    "nombre":  "ACE (acetona)",
-    "MW":      58.08,             # g/mol
-    "m_MW":    0.037879,          # (m/MW) [1/mol]
-    "sigma":   3.4956,            # Angstrom
-    "eps_k":   272.26,            # eps/k [K]
+    "nombre": "ACE (acetona)",
+    "MW":     58.08,              # g/mol
+    "m_MW":   0.037879,           # (m/MW) [1/mol]
+    "sigma":  3.4956,             # Angstrom
+    "eps_k":  272.26,             # eps/k [K]
 }
 
-# ---- 3) COPOLIMERO (componente 2) -----------------------------------------
-#   Formado por dos monomeros (alpha y beta). Para PC-SAFT se usan los
-#   parametros del HOMOPOLIMERO de cada monomero (Tabla 4b):
-#     alpha -> homopolimero 1   |   beta -> homopolimero 2
-#   'w_alpha' es la fraccion MASICA del monomero alpha en el copolimero
-#   (= el numero que aparece en el nombre / 100; p.ej. PSBR5 -> 0.05).
-#   'MW_copolimero' es el peso molecular total del copolimero [g/mol].
+# ---- 3) COPOLIMERO como PSEUDO-MONOMERO (componente 2)  --  Tabla 5 --------
+#   El paper representa el copolimero por UN pseudo-monomero con estos tres
+#   parametros PC-SAFT (Tabla 5). MW es el peso molecular total del copolimero
+#   (Tabla 3). El pseudo-monomero se trata como un solo tipo de segmento.
 COPOLIMERO = {
-    "nombre":        "PSBR5 (poly(styrene-co-butadiene), 5% estireno)",
-    "MW_copolimero": 100000.0,    # g/mol  (peso molecular total)
-    "w_alpha":       0.05,        # fraccion masica del monomero alpha (estireno)
-
-    # --- homopolimero del monomero ALPHA (aqui: PS, poliestireno) ---
-    "alpha": {
-        "nombre": "PS",
-        "m_MW":   0.033238,       # (m/MW) [1/mol]
-        "sigma":  3.5022,         # Angstrom
-        "eps_k":  320.14,         # eps/k [K]
-    },
-    # --- homopolimero del monomero BETA (aqui: PB, polibutadieno) ---
-    "beta": {
-        "nombre": "PB",
-        "m_MW":   0.060552,       # (m/MW) [1/mol]
-        "sigma":  2.9845,         # Angstrom
-        "eps_k":  240.21,         # eps/k [K]
-    },
+    "nombre": "PSBR5 (poly(styrene-co-butadiene), 5% estireno)",
+    "MW":     100000.0,           # g/mol  (peso molecular total del copolimero)
+    "m_MW":   0.045456,           # (m/MW) del pseudo-monomero [1/mol]  (Tabla 5)
+    "sigma":  3.4647,             # sigma del pseudo-monomero [Angstrom] (Tabla 5)
+    "eps_k":  217.86,             # eps/k del pseudo-monomero [K]        (Tabla 5)
 }
 
-# ---- 4) PARAMETROS DE INTERACCION BINARIA kij (adimensionales) ------------
-#   kij corrige la energia cruzada: eps_cross = sqrt(eps_i*eps_j)*(1-kij).
-#   - kij_solvente_alpha : solvente <-> monomero alpha
-#   - kij_solvente_beta  : solvente <-> monomero beta
-#   - kij_alpha_beta     : monomero alpha <-> monomero beta (dentro del copol.)
-#
-#   Metodologia 1 del paper (Tabla 6): un unico kij solvente-copolimero,
-#   el mismo para alpha y beta, y kij_alpha_beta = 0.
-#   Metodologia 2 del paper (Tabla 7): kij distintos para alpha y beta, mas
-#   un kij_alpha_beta pequeno.
-#   Valor por defecto: ACE+PSBR5 metodologia 1 -> kij = 0.0120.
-KIJ_SOLVENTE_ALPHA = 0.0120
-KIJ_SOLVENTE_BETA  = 0.0120
-KIJ_ALPHA_BETA     = 0.0000
+# ---- 4) PARAMETRO DE INTERACCION BINARIA kij  --  Tabla 6 (metodologia 1) --
+#   Un unico kij solvente-copolimero (Ec. 33: eps_12 = sqrt(e1 e2)(1-kij)).
+KIJ = 0.0120                      # ACE+PSBR5, Tabla 6
 
 # ---- 5) DATOS EXPERIMENTALES (opcional) -----------------------------------
-#   Pega aqui los puntos experimentales del sistema que estes calculando.
-#   Se dibujan como PUNTOS sobre la curva estimada (que es solo linea).
-#   Formato: una tupla (w1, P) por fila, con
-#       w1 = fraccion MASICA de solvente
-#       P  = presion [MPa]   (OJO: en MPa, no en kPa)
-#
-#   Puedes copiar los valores desde 'datos_experimentales.txt':
-#     - Si ahi estan en kPa, divide entre 1000 para pasarlos a MPa.
-#       (p.ej. 36.3 kPa  ->  0.0363 MPa)
-#     - Si estan como presion reducida (P/Ps), multiplica por la presion de
-#       saturacion Ps del solvente [MPa] a esa T y pega el resultado.
-#
-#   Si dejas la lista vacia ( [] ), simplemente no se dibujan puntos.
-#
-#   Ejemplo (ACE + PSBR5 a 323.15 K, datos de Gupta & Prausnitz, pasados a MPa):
+#   Pega aqui los puntos del sistema (de datos_experimentales.txt), en MPa.
+#   Formato (w1, P[MPa]). Si kPa, divide entre 1000. Lista vacia = sin puntos.
+#   Ejemplo: ACE+PSBR5 a 323.15 K (Gupta & Prausnitz [1]).
 DATOS_EXPERIMENTALES = [
-    # (w1,    P [MPa])
     (0.003,  0.0137),
     (0.023,  0.0265),
     (0.040,  0.0363),
@@ -135,12 +104,18 @@ ARCHIVO_FIGURA = "resultado_VLE.png"
 
 # =============================================================================
 #  ///////////////  FIN DE PARAMETROS EDITABLES  ////////////////////////////
-#  (A partir de aqui no hace falta editar nada para cambiar de sistema.)
+#
+#  A PARTIR DE AQUI NO HAY NINGUN PARAMETRO DEL SISTEMA.
+#  Todo lo que depende del solvente/copolimero/temperatura esta ARRIBA (1-6).
+#  Lo que sigue son CONSTANTES FIJAS (universales de PC-SAFT y de la fisica)
+#  y el codigo de calculo. NO hace falta editar nada de aqui para abajo.
 # =============================================================================
 
 
 # -----------------------------------------------------------------------------
-#  Constantes universales de PC-SAFT (Gross & Sadowski, 2001)
+#  CONSTANTES FIJAS -- NO EDITAR
+#  Constantes universales de PC-SAFT (Gross & Sadowski, 2001 -> ref. [23]).
+#  Son las mismas para TODOS los sistemas; no son parametros ajustables.
 # -----------------------------------------------------------------------------
 A_COEF = [
     [0.9105631789, -0.3084016918, -0.0906148351],
@@ -161,276 +136,188 @@ B_COEF = [
     [-355.60235612, -165.20769346, -29.666905585],
 ]
 
-KB = 1.380649e-23        # J/K  (constante de Boltzmann)
+KB = 1.380649e-23        # J/K (constante de Boltzmann) -- CONSTANTE FIJA, NO EDITAR
 
 
 # -----------------------------------------------------------------------------
-#  Representacion interna de segmentos y componentes
+#  Componente PC-SAFT: cadena de UN solo tipo de segmento
+#  (solvente o copolimero-pseudo-monomero). Caracterizado por m, sigma, eps/k.
 # -----------------------------------------------------------------------------
-class Segmento:
-    """Un tipo de segmento PC-SAFT."""
+class Componente:
     def __init__(self, nombre, m, sigma, eps_k):
         self.nombre = nombre
-        self.m = m            # numero de segmentos aportado
+        self.m = m            # numero de segmentos por molecula
         self.sigma = sigma    # Angstrom
         self.eps_k = eps_k    # K
 
 
-class Componente:
-    """Componente con 1 (solvente) o 2 (copolimero) tipos de segmento."""
-    def __init__(self, nombre, segmentos, z):
-        self.nombre = nombre
-        self.segs = segmentos         # lista de Segmento
-        self.z = z                    # fracciones de segmento (suman 1)
-        self.m = sum(s.m for s in segmentos)
-
-
 # -----------------------------------------------------------------------------
-#  Motor PC-SAFT para una mezcla
+#  PC-SAFT para una mezcla de componentes de un solo tipo de segmento cada uno
+#  (Ecs. 21-35 del paper). Sin asociacion.
 # -----------------------------------------------------------------------------
 class PCSAFT:
-    def __init__(self, componentes, kij=None):
-        self.comps = componentes
-        self.kij = kij or {}     # dict frozenset({nombreA,nombreB}) -> kij
+    def __init__(self, componentes, kij_matrix):
+        self.c = componentes
+        self.nc = len(componentes)
+        self.kij = kij_matrix     # matriz nc x nc
 
-    def _kij(self, a, b):
-        if a == b:
-            return 0.0
-        return self.kij.get(frozenset((a, b)), 0.0)
-
-    def _sigma_cross(self, sa, sb):
-        return 0.5 * (sa.sigma + sb.sigma)
-
-    def _eps_cross(self, sa, sb):
-        k = self._kij(sa.nombre, sb.nombre)
-        return math.sqrt(sa.eps_k * sb.eps_k) * (1.0 - k)
-
-    def d_seg(self, seg, T):
-        """Diametro de segmento dependiente de T (Ec. 26)."""
-        return seg.sigma * (1.0 - 0.12 * math.exp(-3.0 * seg.eps_k / T))
+    def d_i(self, i, T):
+        """Diametro dependiente de T (Ec. 26)."""
+        s = self.c[i]
+        return s.sigma * (1.0 - 0.12 * math.exp(-3.0 * s.eps_k / T))
 
     def m_bar(self, x):
-        """Numero de segmentos promedio (Ec. 24)."""
-        return sum(x[i] * self.comps[i].m for i in range(len(self.comps)))
+        """Ec. 24: m promedio."""
+        return sum(x[i] * self.c[i].m for i in range(self.nc))
 
-    def _zeta(self, x, rho, T):
-        """zeta_k, k=0..3 (Ec. 25). rho en 1/A^3."""
+    def zeta(self, x, rho, T):
+        """Ec. 25: zeta_k, k=0..3.  rho en 1/A^3."""
         z = [0.0, 0.0, 0.0, 0.0]
         for k in range(4):
             s = 0.0
-            for i, c in enumerate(self.comps):
-                for si, seg in enumerate(c.segs):
-                    d = self.d_seg(seg, T)
-                    s += x[i] * c.m * c.z[si] * d ** k
+            for i in range(self.nc):
+                s += x[i] * self.c[i].m * self.d_i(i, T) ** k
             z[k] = math.pi / 6.0 * rho * s
         return z
 
-    def eta_of(self, x, rho, T):
-        return self._zeta(x, rho, T)[3]
-
-    # ---- contribucion hard-chain (Ecs. 22-23) ----
-    def _ghs(self, di, dj, zeta):
-        z2, z3 = zeta[2], zeta[3]
-        dd = (di * dj) / (di + dj)
-        return (1.0 / (1.0 - z3)
-                + dd * 3.0 * z2 / (1.0 - z3) ** 2
-                + dd ** 2 * 2.0 * z2 ** 2 / (1.0 - z3) ** 3)
-
-    def _a_hs(self, zeta):
-        z0, z1, z2, z3 = zeta
+    # ---- hard-sphere (Ec. estandar PC-SAFT) ----
+    def a_hs(self, z):
+        z0, z1, z2, z3 = z
         return (1.0 / z0) * (3.0 * z1 * z2 / (1.0 - z3)
                              + z2 ** 3 / (z3 * (1.0 - z3) ** 2)
                              + (z2 ** 3 / z3 ** 2 - z0) * math.log(1.0 - z3))
 
-    def a_hc(self, x, rho, T, bonding):
-        """Termino de cadena dura (Ec. 22)."""
-        zeta = self._zeta(x, rho, T)
-        a = self.m_bar(x) * self._a_hs(zeta)
-        for i, c in enumerate(self.comps):
-            if len(c.segs) == 1:
-                d = self.d_seg(c.segs[0], T)
-                a -= x[i] * (c.m - 1.0) * math.log(self._ghs(d, d, zeta))
-            else:
-                B = bonding.get(i)
-                da = self.d_seg(c.segs[0], T)
-                db = self.d_seg(c.segs[1], T)
-                if B is None:
-                    g = self._ghs(da, db, zeta)
-                    a -= x[i] * (c.m - 1.0) * math.log(g)
-                else:
-                    term = (B["aa"] * math.log(self._ghs(da, da, zeta))
-                            + B["ab"] * math.log(self._ghs(da, db, zeta))
-                            + B["bb"] * math.log(self._ghs(db, db, zeta)))
-                    a -= x[i] * (c.m - 1.0) * term
+    def g_hs(self, i, j, z, T):
+        """Funcion de distribucion radial (Ec. 23)."""
+        z2, z3 = z[2], z[3]
+        di, dj = self.d_i(i, T), self.d_i(j, T)
+        dd = di * dj / (di + dj)
+        return (1.0 / (1.0 - z3)
+                + dd * 3.0 * z2 / (1.0 - z3) ** 2
+                + dd ** 2 * 2.0 * z2 ** 2 / (1.0 - z3) ** 3)
+
+    # ---- hard-chain (Ec. 22) ----
+    #   Como cada componente es un solo tipo de segmento, B_{aa}=1 y el
+    #   termino se reduce a  -sum xi (mi-1) ln g^hs_ii  (igual que homopolimero).
+    def a_hc(self, x, rho, T):
+        z = self.zeta(x, rho, T)
+        a = self.m_bar(x) * self.a_hs(z)
+        for i in range(self.nc):
+            a -= x[i] * (self.c[i].m - 1.0) * math.log(self.g_hs(i, i, z, T))
         return a
 
-    # ---- contribucion de dispersion (Ecs. 27-32) ----
-    def _ab_k(self, mbar):
+    # ---- dispersion (Ecs. 27-32) ----
+    def _ab(self, mb):
         a, b = [], []
         for k in range(7):
-            a.append(A_COEF[k][0] + (mbar - 1.0) / mbar * A_COEF[k][1]
-                     + (mbar - 1.0) / mbar * (mbar - 2.0) / mbar * A_COEF[k][2])
-            b.append(B_COEF[k][0] + (mbar - 1.0) / mbar * B_COEF[k][1]
-                     + (mbar - 1.0) / mbar * (mbar - 2.0) / mbar * B_COEF[k][2])
+            a.append(A_COEF[k][0] + (mb - 1.0) / mb * A_COEF[k][1]
+                     + (mb - 1.0) / mb * (mb - 2.0) / mb * A_COEF[k][2])
+            b.append(B_COEF[k][0] + (mb - 1.0) / mb * B_COEF[k][1]
+                     + (mb - 1.0) / mb * (mb - 2.0) / mb * B_COEF[k][2])
         return a, b
 
-    def _I1_I2(self, mbar, eta):
-        a, b = self._ab_k(mbar)
+    def _I1_I2(self, mb, eta):
+        a, b = self._ab(mb)
         I1 = sum(a[k] * eta ** k for k in range(7))
         I2 = sum(b[k] * eta ** k for k in range(7))
         return I1, I2
 
-    def _C1(self, mbar, eta):
+    def _C1(self, mb, eta):
+        # Ec. 30
         return 1.0 / (1.0
-                      + mbar * (8.0 * eta - 2.0 * eta ** 2) / (1.0 - eta) ** 4
-                      + (1.0 - mbar) * (20.0 * eta - 27.0 * eta ** 2
-                                        + 12.0 * eta ** 3 - 2.0 * eta ** 4)
+                      + mb * (8.0 * eta - 2.0 * eta ** 2) / (1.0 - eta) ** 4
+                      + (1.0 - mb) * (20.0 * eta - 27.0 * eta ** 2
+                                      + 12.0 * eta ** 3 - 2.0 * eta ** 4)
                       / ((1.0 - eta) * (2.0 - eta)) ** 2)
 
-    def _m2es3(self, x, T, power):
+    def _eps_sigma_cross(self, i, j):
+        """Ec. 33: reglas de combinacion."""
+        sig = 0.5 * (self.c[i].sigma + self.c[j].sigma)
+        eps = math.sqrt(self.c[i].eps_k * self.c[j].eps_k) * (1.0 - self.kij[i][j])
+        return eps, sig
+
+    def _m2es(self, x, T, power):
+        """sum_i sum_j xi xj mi mj (eps_ij/kT)^power sigma_ij^3."""
         s = 0.0
-        for i, ci in enumerate(self.comps):
-            for j, cj in enumerate(self.comps):
-                for ai, sa in enumerate(ci.segs):
-                    for bj, sb in enumerate(cj.segs):
-                        eps = self._eps_cross(sa, sb)
-                        sig = self._sigma_cross(sa, sb)
-                        s += (x[i] * x[j] * ci.m * cj.m
-                              * ci.z[ai] * cj.z[bj]
-                              * (eps / T) ** power * sig ** 3)
+        for i in range(self.nc):
+            for j in range(self.nc):
+                eps, sig = self._eps_sigma_cross(i, j)
+                s += (x[i] * x[j] * self.c[i].m * self.c[j].m
+                      * (eps / T) ** power * sig ** 3)
         return s
 
     def a_disp(self, x, rho, T):
-        mbar = self.m_bar(x)
-        eta = self.eta_of(x, rho, T)
-        I1, I2 = self._I1_I2(mbar, eta)
-        C1 = self._C1(mbar, eta)
-        a1 = -2.0 * math.pi * rho * I1 * self._m2es3(x, T, 1)
-        a2 = -math.pi * rho * mbar * C1 * I2 * self._m2es3(x, T, 2)
+        mb = self.m_bar(x)
+        eta = self.zeta(x, rho, T)[3]
+        I1, I2 = self._I1_I2(mb, eta)
+        C1 = self._C1(mb, eta)
+        a1 = -2.0 * math.pi * rho * I1 * self._m2es(x, T, 1)   # Ec. 28
+        a2 = -math.pi * rho * mb * C1 * I2 * self._m2es(x, T, 2)  # Ec. 29
         return a1 + a2
 
-    # ---- residual, Z, presion y fugacidad ----
-    def a_res(self, x, rho, T, bonding):
-        return self.a_hc(x, rho, T, bonding) + self.a_disp(x, rho, T)
+    # ---- residual, Z, presion, fugacidad ----
+    def a_res(self, x, rho, T):
+        return self.a_hc(x, rho, T) + self.a_disp(x, rho, T)     # Ec. 21
 
-    def Z(self, x, rho, T, bonding):
+    def Z(self, x, rho, T):
         drho = 1e-6 * rho
-        ap = self.a_res(x, rho + drho, T, bonding)
-        am = self.a_res(x, rho - drho, T, bonding)
-        return 1.0 + rho * (ap - am) / (2.0 * drho)
+        return 1.0 + rho * (self.a_res(x, rho + drho, T)
+                            - self.a_res(x, rho - drho, T)) / (2.0 * drho)
 
-    def pressure(self, x, rho, T, bonding):
-        """Presion en Pa. rho en 1/A^3."""
-        Z = self.Z(x, rho, T, bonding)
-        return Z * (rho * 1e30) * KB * T
+    def pressure(self, x, rho, T):
+        """P en Pa.  rho en 1/A^3."""
+        return self.Z(x, rho, T) * (rho * 1e30) * KB * T
 
-    def ln_phi(self, x, rho, T, bonding):
-        nc = len(self.comps)
-        ares = self.a_res(x, rho, T, bonding)
-        Z = self.Z(x, rho, T, bonding)
+    def ln_phi(self, x, rho, T):
+        """Coeficiente de fugacidad (Ecs. 34-35)."""
+        ares = self.a_res(x, rho, T)
+        Z = self.Z(x, rho, T)
         lnZ = math.log(Z)
         h = 1e-7
         dadx = []
-        for i in range(nc):
+        for i in range(self.nc):
             xp = list(x); xp[i] += h
             xm = list(x); xm[i] -= h
-            dadx.append((self.a_res(xp, rho, T, bonding)
-                         - self.a_res(xm, rho, T, bonding)) / (2.0 * h))
-        sdx = sum(x[j] * dadx[j] for j in range(nc))
-        return [ares + (Z - 1.0) + dadx[i] - sdx - lnZ for i in range(nc)]
+            dadx.append((self.a_res(xp, rho, T) - self.a_res(xm, rho, T)) / (2.0 * h))
+        sdx = sum(x[j] * dadx[j] for j in range(self.nc))
+        return [ares + (Z - 1.0) + dadx[i] - sdx - lnZ for i in range(self.nc)]
 
 
 # -----------------------------------------------------------------------------
-#  Construccion de los componentes a partir del bloque de parametros
+#  Construccion a partir del bloque de parametros
 # -----------------------------------------------------------------------------
 def construir_solvente():
     s = SOLVENTE
-    m = s["m_MW"] * s["MW"]
-    seg = Segmento(s["nombre_seg"] if "nombre_seg" in s else "SOLV",
-                   m, s["sigma"], s["eps_k"])
-    return Componente(s["nombre"], [seg], [1.0])
+    m = s["m_MW"] * s["MW"]                     # m = (m/MW)*MW
+    return Componente(s["nombre"], m, s["sigma"], s["eps_k"])
 
 
 def construir_copolimero():
     c = COPOLIMERO
-    MWc = c["MW_copolimero"]
-    w_a = c["w_alpha"]
-    w_b = 1.0 - w_a
-    # Ec. 18: m_{i,s} = w_{i,s} * MW_copol * (m/MW)_s
-    m_a = w_a * MWc * c["alpha"]["m_MW"]
-    m_b = w_b * MWc * c["beta"]["m_MW"]
-    m_tot = m_a + m_b
-    z_a = m_a / m_tot
-    z_b = m_b / m_tot
-    seg_a = Segmento(c["alpha"]["nombre"], m_a, c["alpha"]["sigma"], c["alpha"]["eps_k"])
-    seg_b = Segmento(c["beta"]["nombre"],  m_b, c["beta"]["sigma"],  c["beta"]["eps_k"])
-    return Componente(c["nombre"], [seg_a, seg_b], [z_a, z_b])
-
-
-def construir_kij():
-    """Diccionario de kij por par de segmentos."""
-    sa = SOLVENTE.get("nombre_seg", "SOLV")
-    na = COPOLIMERO["alpha"]["nombre"]
-    nb = COPOLIMERO["beta"]["nombre"]
-    d = {}
-    d[frozenset((sa, na))] = KIJ_SOLVENTE_ALPHA
-    d[frozenset((sa, nb))] = KIJ_SOLVENTE_BETA
-    if na != nb:
-        d[frozenset((na, nb))] = KIJ_ALPHA_BETA
-    return d
-
-
-def bonding_fractions(comp):
-    """Fracciones de enlace B para distribucion aleatoria (Tabla 1 del paper).
-
-    Se calculan a partir de la fraccion de segmento beta y el numero de
-    segmentos del copolimero.  Si no es copolimero efectivo (un solo tipo),
-    devuelve None.
-    """
-    if len(comp.segs) < 2:
-        return None
-    z_a, z_b = comp.z[0], comp.z[1]
-    m = comp.m
-    if m <= 1:
-        return None
-    # Tabla 1: distribucion aleatoria (random)
-    if z_b < z_a:
-        B_ab = 2.0 * (z_b * m) / (m - 1.0)
-        B_aa = 1.0 - B_ab
-        B_bb = 0.0
-    elif z_b > z_a:
-        B_ab = 2.0 * (z_a * m) / (m - 1.0)
-        B_bb = 1.0 - B_ab
-        B_aa = 0.0
-    else:  # alternante
-        B_ab = 1.0
-        B_aa = 0.0
-        B_bb = 0.0
-    # normalizacion defensiva
-    B_ab = min(max(B_ab, 0.0), 1.0)
-    return {"aa": max(B_aa, 0.0), "ab": B_ab, "bb": max(B_bb, 0.0)}
+    m = c["m_MW"] * c["MW"]                     # Ec.18-19 con pseudo-monomero:
+                                               # m_copol = (m/MW)_psm * MW_copol
+    return Componente(c["nombre"], m, c["sigma"], c["eps_k"])
 
 
 # -----------------------------------------------------------------------------
-#  Conversiones y resolucion del equilibrio
+#  Fraccion masica de solvente -> fraccion molar de solvente
 # -----------------------------------------------------------------------------
 def w1_a_x1(w1):
-    """Fraccion masica de solvente -> fraccion molar de solvente."""
     MW_s = SOLVENTE["MW"]
-    MW_c = COPOLIMERO["MW_copolimero"]
+    MW_c = COPOLIMERO["MW"]
     n_s = w1 / MW_s
     n_c = (1.0 - w1) / MW_c
     return n_s / (n_s + n_c)
 
 
-def _resolver_densidad(model, x, T, P_pa, bonding, fase):
-    """Encuentra rho (1/A^3) tal que P(rho) = P_pa."""
-    sum_seg = 0.0
-    for i, c in enumerate(model.comps):
-        for si, seg in enumerate(c.segs):
-            d = model.d_seg(seg, T)
-            sum_seg += x[i] * c.m * c.z[si] * d ** 3
-    coef = math.pi / 6.0 * sum_seg
+# -----------------------------------------------------------------------------
+#  Densidad a (T,P): resolver rho tal que P(rho)=P_pa
+# -----------------------------------------------------------------------------
+def _resolver_densidad(model, x, T, P_pa, fase):
+    suma = 0.0
+    for i in range(model.nc):
+        suma += x[i] * model.c[i].m * model.d_i(i, T) ** 3
+    coef = math.pi / 6.0 * suma
     rho_de_eta = lambda eta: eta / coef
 
     if fase == "liq":
@@ -439,41 +326,38 @@ def _resolver_densidad(model, x, T, P_pa, bonding, fase):
     else:
         etas = [1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 0.01, 0.05, 0.1]
 
-    def Pres(rho):
-        return model.pressure(x, rho, T, bonding) - P_pa
+    def P(rho):
+        return model.pressure(x, rho, T) - P_pa
 
-    prev_rho = rho_de_eta(etas[0])
-    prev_val = Pres(prev_rho)
+    prev_r = rho_de_eta(etas[0]); prev_v = P(prev_r)
     for e in etas[1:]:
-        rho = rho_de_eta(e)
-        val = Pres(rho)
-        if prev_val * val < 0:
-            lo, hi = sorted((prev_rho, rho))
+        r = rho_de_eta(e); v = P(r)
+        if prev_v * v < 0:
+            lo, hi = sorted((prev_r, r))
             try:
-                return brentq(Pres, lo, hi, xtol=1e-16, rtol=1e-10, maxiter=100)
+                return brentq(P, lo, hi, xtol=1e-16, rtol=1e-10, maxiter=100)
             except Exception:
                 return 0.5 * (lo + hi)
-        prev_rho, prev_val = rho, val
+        prev_r, prev_v = r, v
     return None
 
 
-def presion_de_burbuja(solv, cop, model_liq, model_vap, T, x1, bonding):
-    """Presion de equilibrio [MPa] para fraccion molar de solvente x1.
-
-    Condicion (Ec. 39):  x1 * phi_hat_1^L = phi_1^V  (vapor = solvente puro).
-    """
+# -----------------------------------------------------------------------------
+#  Presion de equilibrio (Ec. 39)
+# -----------------------------------------------------------------------------
+def presion_de_burbuja(model_liq, model_vap, T, x1):
     x = [x1, 1.0 - x1]
 
     def residual(P_pa):
-        rho_l = _resolver_densidad(model_liq, x, T, P_pa, bonding, "liq")
-        if rho_l is None:
+        rl = _resolver_densidad(model_liq, x, T, P_pa, "liq")
+        if rl is None:
             return None
-        lnphi_l = model_liq.ln_phi(x, rho_l, T, bonding)
-        rho_v = _resolver_densidad(model_vap, [1.0], T, P_pa, {}, "vap")
-        if rho_v is None:
+        lnphi_l = model_liq.ln_phi(x, rl, T)[0]
+        rv = _resolver_densidad(model_vap, [1.0], T, P_pa, "vap")
+        if rv is None:
             return None
-        lnphi_v = model_vap.ln_phi([1.0], rho_v, T, {})[0]
-        return (math.log(x1) + lnphi_l[0]) - lnphi_v
+        lnphi_v = model_vap.ln_phi([1.0], rv, T)[0]
+        return (math.log(x1) + lnphi_l) - lnphi_v      # Ec. 39
 
     P_grid = np.logspace(math.log10(1.0e2), math.log10(2.0e6), 28)
     prev_P = prev_f = None
@@ -492,7 +376,7 @@ def presion_de_burbuja(solv, cop, model_liq, model_vap, T, x1, bonding):
     lo, hi = bracket
     try:
         return brentq(lambda P: residual(P), lo, hi,
-                      xtol=1e-2, rtol=1e-9, maxiter=60) / 1e6
+                      xtol=1e-2, rtol=1e-9, maxiter=60) / 1e6   # MPa
     except Exception:
         return 0.5 * (lo + hi) / 1e6
 
@@ -505,25 +389,21 @@ def main():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    # construir componentes y modelos
     solv = construir_solvente()
     cop = construir_copolimero()
-    kij = construir_kij()
-    model_liq = PCSAFT([solv, cop], kij=kij)
-    model_vap = PCSAFT([solv], kij=kij)
-    bonding = {1: bonding_fractions(cop)}
+    kij_m = [[0.0, KIJ], [KIJ, 0.0]]
+    model_liq = PCSAFT([solv, cop], kij_m)
+    model_vap = PCSAFT([solv], [[0.0]])
 
     T = TEMPERATURA_K
     ws = np.linspace(max(W1_MIN, 1e-4), W1_MAX, N_PUNTOS)
 
     print("=" * 66)
-    print("  VLE PC-SAFT  |  %s (1) + %s (2)" % (SOLVENTE["nombre"],
-                                                 COPOLIMERO["nombre"]))
-    print("  T = %.2f K" % T)
-    print("  copolimero:  m_total=%.1f  z_alpha=%.4f  z_beta=%.4f"
-          % (cop.m, cop.z[0], cop.z[1]))
-    print("  kij: solv-alpha=%.4f  solv-beta=%.4f  alpha-beta=%.4f"
-          % (KIJ_SOLVENTE_ALPHA, KIJ_SOLVENTE_BETA, KIJ_ALPHA_BETA))
+    print("  VLE PC-SAFT (pseudo-monomero, metodologia 1 del paper)")
+    print("  %s (1) + %s (2)" % (SOLVENTE["nombre"], COPOLIMERO["nombre"]))
+    print("  T = %.2f K   kij = %.4f" % (T, KIJ))
+    print("  m_solvente = %.3f   m_copolimero(pseudo) = %.1f"
+          % (solv.m, cop.m))
     print("=" * 66)
     print("  %10s  %12s" % ("w1", "P (MPa)"))
 
@@ -531,12 +411,11 @@ def main():
     for w1 in ws:
         x1 = w1_a_x1(float(w1))
         try:
-            P = presion_de_burbuja(solv, cop, model_liq, model_vap, T, x1, bonding)
+            P = presion_de_burbuja(model_liq, model_vap, T, x1)
         except Exception:
             P = None
         if P is not None and P > 0:
-            w_ok.append(float(w1))
-            P_ok.append(P)
+            w_ok.append(float(w1)); P_ok.append(P)
             print("  %10.4f  %12.6f" % (w1, P))
         else:
             print("  %10.4f  %12s" % (w1, "(no converge)"))
@@ -545,21 +424,28 @@ def main():
         print("\n[!] No se obtuvieron puntos. Revisa los parametros.")
         return
 
-    # grafica
-    fig, ax = plt.subplots(figsize=(7, 5))
-
-    # curva ESTIMADA: solo linea (sin marcadores)
-    ax.plot(w_ok, P_ok, "-", color="#3b0a70", lw=2,
-            label="PC-SAFT (estimado)")
-
-    # datos EXPERIMENTALES: solo puntos (si hay)
+    # ---- desviacion de presion %DeltaP/P (Ec. 40) si hay experimentales ----
     if DATOS_EXPERIMENTALES:
-        w_exp = [d[0] for d in DATOS_EXPERIMENTALES]
-        P_exp = [d[1] for d in DATOS_EXPERIMENTALES]
-        ax.plot(w_exp, P_exp, "o", color="#d62728", ms=6,
-                markerfacecolor="white", markeredgewidth=1.4,
-                label="Experimental")
+        import numpy as _np
+        wE = _np.array([d[0] for d in DATOS_EXPERIMENTALES])
+        PE = _np.array([d[1] for d in DATOS_EXPERIMENTALES])
+        s = 0.0; n = 0
+        for w1, Pexp in DATOS_EXPERIMENTALES:
+            x1 = w1_a_x1(w1)
+            Pc = presion_de_burbuja(model_liq, model_vap, T, x1)
+            if Pc:
+                s += abs(Pc - Pexp) / Pexp; n += 1
+        if n:
+            print("\n  %%DeltaP/P (Ec. 40) = %.2f %%   (np=%d)" % (100 * s / n, n))
 
+    # ---- grafica ----
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.plot(w_ok, P_ok, "-", color="#3b0a70", lw=2, label="PC-SAFT (estimado)")
+    if DATOS_EXPERIMENTALES:
+        ax.plot([d[0] for d in DATOS_EXPERIMENTALES],
+                [d[1] for d in DATOS_EXPERIMENTALES],
+                "o", color="#d62728", ms=6, markerfacecolor="white",
+                markeredgewidth=1.4, label="Experimental")
     ax.set_xlabel("Fraccion masica de solvente  $w_1$")
     ax.set_ylabel("Presion  $P$  (MPa)")
     ax.set_title("VLE PC-SAFT\n%s (1) + %s (2)   T=%.2f K"
@@ -567,13 +453,10 @@ def main():
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
-    # Guardar SIEMPRE en la misma carpeta donde esta este archivo .py
-    # (no en el directorio desde el que se lanza el comando).
-    import os
-    carpeta_script = os.path.dirname(os.path.abspath(__file__))
-    ruta_figura = os.path.join(carpeta_script, ARCHIVO_FIGURA)
-    fig.savefig(ruta_figura, dpi=130)
-    print("\n  Figura guardada en: %s" % ruta_figura)
+    carpeta = os.path.dirname(os.path.abspath(__file__))
+    ruta = os.path.join(carpeta, ARCHIVO_FIGURA)
+    fig.savefig(ruta, dpi=130)
+    print("\n  Figura guardada en: %s" % ruta)
 
 
 if __name__ == "__main__":
