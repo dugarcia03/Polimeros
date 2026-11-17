@@ -94,3 +94,88 @@ El camino para cerrar la brecha es implementar la **metodología 2** completa:
 copolímero como dos tipos de segmento (α, β) con fracciones de enlace B_iα,iβ
 (Tabla 3, Ecs. 22–25) y tres kij por familia (κij^a, κij^b, κiα,jβ de la Tabla 7),
 más el término de asociación para nC4OH.
+
+---
+
+# Revisión final exhaustiva (2ª pasada, solo datos del artículo principal)
+
+Se probó todo lo que quedaba, usando únicamente datos del paper de Arce y de su
+fuente experimental [1] (Gupta 1995). Resultados:
+
+## 5. Pruebas nuevas realizadas y su veredicto
+
+### 5.1 Validación de Psat de cada solvente puro (Tabla 4b vs Antoine)
+Aísla motor+parámetros del tema de mezcla:
+
+| Solvente | T[K] | Psat modelo | Antoine | %err | Veredicto |
+|---|---|---|---|---|---|
+| CHL | 333.15 | 0.0962 | 0.0972 | **1.0** | OK |
+| cC6 | 333.15 | 0.0514 | 0.0519 | **0.9** | OK |
+| BZN | 298.15 | 0.0127 | 0.0127 | **0.1** | OK |
+| TOL | 308.15 | 0.0065 | 0.0062 | **4.0** | OK |
+| nC6 | 343.15 | 0.1171 | 0.1054 | 11.1 | aceptable |
+| nC5 | 333.15 | 0.2396 | 0.2145 | 11.7 | aceptable |
+| ACE | 323.15 | 0.1583 | 0.0814 | **94.5** | FALLA (dipolar) |
+| nC4OH | 353.15 | 0.1486 | 0.0223 | **565** | FALLA (asociación) |
+
+→ El motor reproduce todos los solventes **no polares y no asociantes**. Falla
+  solo acetona (dipolo) y 1-butanol (asociación), que son física no incluida.
+
+### 5.2 Término de asociación (Ecs. 36-38) para nC4OH — IMPLEMENTADO
+Se añadió al motor el término de asociación esquema 2B usando SOLO los parámetros
+del paper (Tabla 4b: κAB=0.008752, εAB=2489.23 K). Resultado decisivo:
+
+- **Psat del 1-butanol puro: de 565 % a 3.0 %** de error (0.5-4 % en el rango).
+- **nC4OH+PVAE9: de 25.35 % a 10.81 %** (gran mejora; curva en rango correcto).
+- nC4OH+PVAVC12: empeora (69→82 %) porque el PVC es un segmento muy particular
+  y necesita kij localizado (metodología 2), no el término de asociación.
+
+→ Confirma que la asociación era la física faltante para el butanol. El motor
+  ahora activa el término solo cuando el paper da parámetros de asociación.
+
+### 5.3 Sensibilidad al MW del copolímero — DESCARTADO como causa
+El %ΔP de cC6+PVAE25 es **insensible al MW** (83.7 % para MW entre 5000 y 88000).
+En el límite de cadena larga, el VLE del solvente depende de m/MW, no de MW.
+La escala de m (Ec. 18-19) está bien implementada.
+
+### 5.4 Barrido de kij — confirma que es estructural, no de valor
+¿Qué kij haría que nuestro motor dé el %ΔP del paper?
+- CHL+PVAE9: existe kij=+0.060 → 5.27 % (paper 4.18 % con kij=−0.1208). Signo opuesto.
+- cC6+PVAE25: el mejor posible es 14.3 % (kij=+0.020); **ningún kij llega a 5.36 %**.
+
+→ Para cC6+PVAE ningún kij único reproduce el paper: es **estructural**. Un solo
+  pseudo-segmento con un solo kij no tiene grados de libertad suficientes. El paper
+  lo resuelve en metodología 2 (Tabla 7) con kij por segmento (VA y ET por separado).
+
+### 5.5 Datos de tolueno re-verificados contra imagen del PDF de Gupta — CORRECTOS
+Se sospechó que TOL+PSBR23 (68.8 %) tenía datos mal transcritos. Se renderizó la
+tabla de Gupta p.4 como imagen y se leyó celda por celda:
+- Formato de Gupta: pares **(P[kPa], w1)**. Para TOL+PSBR23: P={0.90,2.08,3.04,4.36,4.83,5.48}.
+- Los datos cargados **ya eran correctos** (incluidos los 0.90/2.08 kPa, que SÍ son de tolueno).
+
+El problema de TOL+PSBR23 NO es de datos: a w1=0.029-0.038 (x1 cambia solo de 0.9957
+a 0.9968) la Pexp se sextuplica. Es un régimen ultra-diluido con copolímero de
+MW=720000; a composición casi constante el modelo da P casi constante (correcto).
+El dato experimental está en el límite de ruido. TOL+PSBR5 (MW=100000, w1 hasta 0.513)
+reproduce bien (ratio Pcalc/Pexp = 0.90-1.11).
+
+### 5.6 Descomposición de términos de Helmholtz — todo sano
+a_hc, a1, a2, I1, I2, C1, m2es en rangos físicos normales (sin overflow/NaN) tanto
+en sistemas buenos como malos. El solver de densidad encuentra la raíz líquida
+física correcta (rama ascendente de P(η)). No hay artefactos numéricos.
+
+## 6. Conclusión final de la revisión
+
+Nada nuevo cambia el diagnóstico de fondo, y se confirma con más fuerza:
+
+1. **El motor y los parámetros son correctos** (verificados contra Tablas 4b/5/6
+   y Ecs. 21-40 del PDF original, y contra Psat puros y datos de Gupta).
+2. **La única física que faltaba y se pudo añadir con datos del paper** es la
+   asociación del butanol (Ecs. 36-38), que mejora nC4OH+PVAE9 de 25 % a 11 %.
+3. **El resto de la brecha es intrínseco a la metodología 1**: un pseudo-segmento
+   con un solo kij no puede reproducir sistemas donde el paper usó kij por segmento
+   (metodología 2, global 2.04 %) o donde falta el término dipolar (acetona).
+
+Para cerrar del todo la brecha se requiere la metodología 2 (segmentos α/β con
+fracciones de enlace B de Tabla 3 y los tres kij de Tabla 7) — no hay ningún ajuste
+dentro de la metodología 1 que lo logre con los datos del artículo.

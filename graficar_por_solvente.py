@@ -52,7 +52,12 @@ def curva(solv_k, cop_k, T, kij, npts=35):
     ms = SOLV[solv_k]; ps = COP[cop_k]
     pv.SOLVENTE = {"nombre": solv_k, "MW": ms[3], "m_MW": ms[0], "sigma": ms[1], "eps_k": ms[2]}
     pv.COPOLIMERO = {"nombre": cop_k, "MW": float(ps[3]), "m_MW": ps[0], "sigma": ps[1], "eps_k": ps[2]}
-    solv = pv.construir_solvente(); cop = pv.construir_copolimero()
+    # nC4OH es auto-asociante (Tabla 4b): activa el termino de asociacion (Ecs.36-38)
+    if solv_k == "nC4OH":
+        solv = pv.Componente(solv_k, ms[0]*ms[3], ms[1], ms[2], 0.008752, 2489.23)
+    else:
+        solv = pv.construir_solvente()
+    cop = pv.construir_copolimero()
     ml = pv.PCSAFT([solv, cop], [[0, kij], [kij, 0]]); mv = pv.PCSAFT([solv], [[0.0]])
     pts = DATA[(solv_k, cop_k, T)]
     wmin = min(p[0] for p in pts); wmax = max(p[0] for p in pts)

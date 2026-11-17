@@ -126,11 +126,14 @@ KB = 1.380649e-23        # J/K (constante de Boltzmann) -- CONSTANTE FIJA, NO ED
 #  (solvente o copolimero-pseudo-monomero). Caracterizado por m, sigma, eps/k.
 # -----------------------------------------------------------------------------
 class Componente:
-    def __init__(self, nombre, m, sigma, eps_k):
+    def __init__(self, nombre, m, sigma, eps_k, kAB=0.0, epsAB=0.0):
         self.nombre = nombre
         self.m = m            # numero de segmentos por molecula
         self.sigma = sigma    # Angstrom
         self.eps_k = eps_k    # K
+        self.kAB = kAB        # volumen de asociacion (Tabla 4b) -- 0 si no asocia
+        self.epsAB = epsAB    # energia de asociacion eps_AB/k [K] (Tabla 4b)
+        self.asocia = (kAB > 0.0 and epsAB > 0.0)   # esquema 2B (alcohol)
 
 
 # -----------------------------------------------------------------------------
@@ -237,9 +240,40 @@ class PCSAFT:
         a2 = -math.pi * rho * mb * C1 * I2 * self._m2es(x, T, 2)  # Ec. 29
         return a1 + a2
 
+    # ---- asociacion (Ecs. 36-38) ----
+    #   Esquema 2B (dos sitios A,B por molecula; A solo asocia con B).
+    #   Solo contribuyen los componentes auto-asociantes (alcohol nC4OH).
+    #   Para un solo asociante en la mezcla, por simetria 2B XA = XB, y:
+    #       XA = (-1 + sqrt(1 + 4*rho_i*Delta)) / (2*rho_i*Delta)
+    #   con Delta = sigma_ii^3 * g^hs_ii * kAB * (exp(epsAB/T) - 1)   (Ec. 38)
+    #   rho_i = rho * x_i  es la densidad numerica del asociante [1/A^3].
+    def a_assoc(self, x, rho, T):
+        total = 0.0
+        z = None
+        for i in range(self.nc):
+            ci = self.c[i]
+            if not getattr(ci, "asocia", False):
+                continue
+            if z is None:
+                z = self.zeta(x, rho, T)
+            ghs = self.g_hs(i, i, z, T)
+            delta = ci.sigma ** 3 * ghs * ci.kAB * (math.exp(ci.epsAB / T) - 1.0)
+            rho_i = rho * x[i]                 # densidad numerica del asociante
+            rd = rho_i * delta
+            if rd <= 0.0:
+                continue
+            XA = (-1.0 + math.sqrt(1.0 + 4.0 * rd)) / (2.0 * rd)
+            # Ec. 36 con 2 sitios iguales (A y B): sum_sites (ln X - X/2 + 1/2)
+            a_i = 2.0 * (math.log(XA) - XA / 2.0 + 0.5)
+            total += x[i] * a_i
+        return total
+
     # ---- residual, Z, presion, fugacidad ----
     def a_res(self, x, rho, T):
-        return self.a_hc(x, rho, T) + self.a_disp(x, rho, T)     # Ec. 21
+        a = self.a_hc(x, rho, T) + self.a_disp(x, rho, T)        # Ec. 21
+        if any(getattr(ci, "asocia", False) for ci in self.c):
+            a += self.a_assoc(x, rho, T)                         # + Ec. 36
+        return a
 
     def Z(self, x, rho, T):
         drho = 1e-6 * rho

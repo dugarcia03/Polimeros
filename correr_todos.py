@@ -66,7 +66,9 @@ DATA = {
  ("cC6","PVAE25",353.15):[(0.011,0.0075),(0.037,0.0144),(0.074,0.0265),(0.140,0.0397),(0.228,0.0549),(0.238,0.0555),(0.277,0.0607),(0.300,0.0641),(0.369,0.0704)],
  ("cC6","PVAE50",353.15):[(0.005,0.0075),(0.025,0.0144),(0.046,0.0265),(0.104,0.0397),(0.159,0.0549),(0.170,0.0555),(0.205,0.0607),(0.225,0.0641),(0.287,0.0704)],
  ("cC6","PVAE70",353.15):[(0.004,0.0075),(0.026,0.0144),(0.042,0.0265),(0.081,0.0397),(0.123,0.0549),(0.133,0.0555),(0.156,0.0607),(0.191,0.0641),(0.242,0.0704)],
+ # TOL+PSBR5 (Gupta, formato (P,w1)): P = {0.93,2.08,3.04,4.36,4.83,5.48} kPa. VERIFICADO vs imagen PDF.
  ("TOL","PSBR5",308.15):[(0.043,0.00093),(0.099,0.00208),(0.184,0.00304),(0.319,0.00436),(0.416,0.00483),(0.513,0.00548)],
+ # TOL+PSBR23 (Gupta, formato (P,w1)): P = {0.90,2.08,3.04,4.36,4.83,5.48} kPa. VERIFICADO vs imagen PDF.
  ("TOL","PSBR23",308.15):[(0.029,0.00090),(0.031,0.00208),(0.032,0.00304),(0.037,0.00436),(0.037,0.00483),(0.038,0.00548)],
  ("nC6","PSBR23",343.15):[(0.014,0.0139),(0.043,0.0273),(0.063,0.0385),(0.110,0.0488),(0.162,0.0615),(0.262,0.0752)],
  ("nC6","PSBR45",343.15):[(0.016,0.0139),(0.038,0.0273),(0.061,0.0385),(0.103,0.0488),(0.155,0.0615),(0.249,0.0752)],
@@ -75,11 +77,22 @@ DATA = {
 }
 
 
+# Parametros de asociacion (Tabla 4b): solo el nC4OH es auto-asociante.
+ASOC = {
+    "nC4OH": (0.008752, 2489.23),   # (kAB, epsAB/k [K])
+}
+
+
 def dp_system(solv_key, cop_key, T, pts, kij):
     ms = SOLV[solv_key]; mc = COP[cop_key]
     pv.SOLVENTE = {"nombre":solv_key,"MW":ms[3],"m_MW":ms[0],"sigma":ms[1],"eps_k":ms[2]}
     pv.COPOLIMERO = {"nombre":cop_key,"MW":float(mc[3]),"m_MW":mc[0],"sigma":mc[1],"eps_k":mc[2]}
-    solv = pv.construir_solvente(); cop = pv.construir_copolimero()
+    if solv_key in ASOC:
+        kAB, epsAB = ASOC[solv_key]
+        solv = pv.Componente(solv_key, ms[0]*ms[3], ms[1], ms[2], kAB, epsAB)
+    else:
+        solv = pv.construir_solvente()
+    cop = pv.construir_copolimero()
     ml = pv.PCSAFT([solv,cop],[[0,kij],[kij,0]]); mv = pv.PCSAFT([solv],[[0.0]])
     s=0.0; n=0
     for w1,Pexp in pts:
@@ -96,11 +109,14 @@ def dp_system(solv_key, cop_key, T, pts, kij):
 if __name__ == "__main__":
     print("%-7s %-9s %8s %8s %10s %8s" % ("Solv","Copol","T[K]","kij","dP_calc%","dP_paper%"))
     print("-"*56)
-    tot_c=0.0; tot_n=0
+    suma_sist=0.0; nsist=0
     for (solv,cop,T),pts in DATA.items():
         kij,dp_paper = KIJ_DP[(solv,cop)]
         dp_calc,n = dp_system(solv,cop,T,pts,kij)
-        tot_c += dp_calc*n; tot_n += n
+        if dp_calc is not None:
+            suma_sist += dp_calc; nsist += 1
         print("%-7s %-9s %8.2f %8.4f %9.2f %8.2f" % (solv,cop,T,kij,dp_calc,dp_paper))
     print("-"*56)
+    print("Desviacion global (promedio por sistema) de nuestro motor: %.2f%% sobre %d sistemas"
+          % (suma_sist/nsist, nsist))
     print("Desviacion global PC-SAFT reportada por el paper (metod.1): 4.41%")
