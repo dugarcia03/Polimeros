@@ -189,3 +189,61 @@ copolímero como casi puro PE apolar → subestima P. Usar z de polímero (z_VA�
 El peso molecular **no es la variable que falta**. La sensibilidad real es a la
 **composición de segmentos y a cómo se pondera el kij del segmento minoritario de
 alto ε (VA)** en la dispersión — el punto metodológico no documentado del paper.
+
+---
+
+# Revisión completa desde cero (auditoría independiente)
+
+Se re-revisó todo el proyecto con ojos frescos, sin asumir conclusiones previas.
+
+## 17. Auditoría independiente del motor M2 (sub-agente)
+
+Un sub-agente auditó `pcsaft_m2.py` línea por línea contra las ecuaciones canónicas
+de PC-SAFT para copolímeros. Veredicto:
+
+- `a_hc` (Ec.22), `zeta` (Ec.25), `_m2es` (Ecs.28-29), `m_bar` (Ec.24), `g_seg`
+  (Ec.23), `a_hs`, `a_disp`, `_C1`, `_I1_I2`: **todas correctas**.
+- **No hay confusión m_i vs m_iα** (el punto más probable de error): el código usa
+  consistentemente m_i·z_iα = m_iα.
+- `Z` numérico y `ln_phi`: termodinámicamente correctos (derivadas a ρ,T ctes; no
+  renormalizar x tras el desplazamiento es lo correcto). Solo notas de robustez.
+- Único punto estructural: la matriz B debe sumar 1 (ya garantizado por el fix /2).
+
+→ El motor M2 está verificado por dos vías independientes (esta auditoría + la
+  prueba de oro de n-alcanos del motor M1 con ecuaciones idénticas).
+
+## 18. Re-verificación de parámetros de segmento
+
+El paper dice textualmente (pág.3) "the three pure-component parameters of solvent,
+poly(α) and poly(β)". Se re-probó usar parámetros de POLÍMERO (PS,PB,PVA,PE,PVC)
+en los segmentos, con construcción cuidadosa y B corregidas: **global 70 %** (peor
+que monómero, 33 %). Confirmado que M2 usa parámetros de MONÓMERO para σ/ε de los
+segmentos (la frase "poly" del paper es laxa; la Tabla 5 pseudo-monómero sale exacta
+de monómeros, ya verificado).
+
+## 19. Re-verificación de datos experimentales de CHL+PVAE (celda por celda vs PDF)
+
+Se sospechó un error de transcripción en CHL+PVAE (la columna de presión más a la
+izquierda, x≈61 en el PDF, parecía de un sistema vecino). Tras renderizar la tabla
+de Gupta p.3 como imagen a alta resolución:
+
+- El formato de Gupta es **(P[kPa], w1)**: cada presión se lee con la w1 a su derecha.
+- La columna x≈61 (14.0, 28.1, 40.1 kPa para PVAE9) **SÍ pertenece a CHL+PVAE9**,
+  emparejada con w1 = 0.031, 0.067, 0.104.
+- **Los datos cargados coinciden EXACTAMENTE con el PDF.** No hay error de transcripción.
+
+→ Igual que con tolueno, los datos de CHL+PVAE están verificados fieles al PDF.
+
+## 20. Balance de la revisión completa
+
+Todo lo verificable está correcto y confirmado por vías independientes:
+- Ecuaciones = Gross-Sadowski original (idénticas).
+- Motor M1 validado <1 % en n-alcanos; motor M2 auditado sin errores.
+- Pseudo-monómeros (Tabla 5) y fracciones B (Tabla 3) reproducidos exactos.
+- Datos experimentales (tolueno, CHL+PVAE) verificados celda por celda vs Gupta.
+- Errata C1 de GS ya corregida; fix de doble conteo en B aplicado.
+
+La discrepancia con el paper (M1 ~4 %, M2 ~2 %) persiste y NO se explica por ningún
+error nuestro. Queda como única hipótesis viva una **decisión metodológica del paper
+no documentada** sobre la ponderación/combinación de los segmentos VA/ET (el segmento
+minoritario de alto ε no pesa lo suficiente en nuestra dispersión cuando z_VA es bajo).
