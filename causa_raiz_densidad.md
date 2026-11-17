@@ -73,3 +73,57 @@ Tabla 4b**: no reproducen la densidad del polímero (crítico en VA). El paper a
 esa inconsistencia en sus kij ajustados; nosotros no podemos replicar ese
 acoplamiento sin la información de cómo el paper calibró los kij contra ese esqueleto
 de baja densidad.
+
+---
+
+# Corrección y matiz importante (revisión posterior)
+
+Al verificar si los parámetros de monómero están "mal", se encontró un matiz que
+corrige la interpretación anterior:
+
+## Los parámetros de monómero SÍ reproducen el monómero puro
+
+Densidad del MONÓMERO puro líquido (Tabla 4b) vs real:
+
+| Monómero | ρ modelo | ρ real | ¿OK? |
+|---|---|---|---|
+| VA (298 K) | 0.906 | ~0.93 (acetato de vinilo) | ✓ |
+| STR (298 K) | 0.894 | ~0.906 (estireno) | ✓ |
+| ET (150 K) | 0.594 | ~0.57 | ✓ |
+| VC (260 K) | 0.968 | ~0.91 | ✓ |
+| BTD (268 K) | 0.650 | ~0.62 | ✓ |
+
+→ Los parámetros de monómero (incluido VA con σ=5.07) **NO son una errata**: están
+  bien calibrados al monómero puro. El σ grande del VA es correcto para la molécula
+  libre de acetato de vinilo.
+
+## El problema es el pseudo-monómero, no los parámetros base
+
+El pseudo-monómero (combinación aritmética Ec.13-15 de monómeros) da densidad de
+copolímero irreal (~0.56 vs ~0.92-0.97 del EVA fundido real), porque hereda el σ
+grande del monómero VA libre (5.07), mientras el polímero PVA real es compacto
+(σ=3.51). La combinación de monómeros "esponjosos" produce un pseudo-segmento con
+demasiado volumen por masa.
+
+## Lo que esto significa para la replicación
+
+- Esto es **inherente al método del paper** (pseudo-monómero de monómeros), no un
+  error nuestro ni de los datos.
+- El paper usó exactamente este pseudo-monómero de baja densidad y obtuvo ~4 %.
+- Nuestro motor (verificado contra Gross-Sadowski y n-alcanos) es muy sensible a
+  esa baja densidad en el régimen de los PVAE; el del paper, aparentemente, no.
+- **No corresponde reajustar kij** (sería fabricar datos nuevos, no replicar).
+
+## Estado del diagnóstico (honesto)
+
+Verificado y correcto, usando SOLO datos del artículo:
+- Ecuaciones = Gross-Sadowski (idénticas); motor validado <1 % en n-alcanos.
+- Parámetros de monómero, solvente y polímero = Tabla 4b (reproducen puros).
+- Pseudo-monómeros = Tabla 5 (media aritmética molar, exacta).
+- Fracciones B = Tabla 3 (fórmula Tabla 1, exacta); datos = Gupta (verificados).
+
+La discrepancia persiste y su origen está localizado en la **sensibilidad del VLE
+al pseudo-monómero de baja densidad de los PVAE**, un acoplamiento que nuestro motor
+PC-SAFT estándar maneja distinto a como lo hizo el paper. No es recuperable de la
+información publicada sin conocer el detalle exacto de la implementación del paper,
+y no se puede cerrar reajustando parámetros sin dejar de replicar el artículo.
