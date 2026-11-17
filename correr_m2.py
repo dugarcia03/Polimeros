@@ -96,10 +96,14 @@ def construir_copolimero(cop):
     segA = m2.Segmento(A, wA*MW*mA[0], mA[1], mA[2])
     segB = m2.Segmento(B, wB*MW*mB[0], mB[1], mB[2])
     # Bfr = (B_aa_t3, B_ab_t3, B_bb_t3) de Tabla 3, con α=mon2, β=mon1.
+    # Los tres valores de Tabla 3 SUMAN 1 (son las fracciones de los 3 tipos de enlace).
+    # En la doble suma Σ_a Σ_b B[a][b] ln g, el enlace cruzado αβ aparece DOS veces
+    # (posiciones [0][1] y [1][0]); por eso se reparte B_αβ/2 en cada una, para que
+    # la doble suma total sea exactamente B_αα + B_αβ + B_ββ = 1.
     # Motor: seg 0 = mon1(A) = β_tabla3 ; seg 1 = mon2(B) = α_tabla3.
     B_aa_t3, B_ab_t3, B_bb_t3 = Bfr
-    Bmat = [[B_bb_t3, B_ab_t3],   # [0][0]=B_ββ(mon1-mon1) , [0][1]=B_αβ
-            [B_ab_t3, B_aa_t3]]   # [1][1]=B_αα(mon2-mon2)
+    Bmat = [[B_bb_t3,       B_ab_t3 / 2.0],   # [0][0]=B_ββ ; [0][1]=B_αβ/2
+            [B_ab_t3 / 2.0, B_aa_t3]]         # [1][1]=B_αα ; [1][0]=B_αβ/2
     return m2.Componente(cop, [segA, segB], Bmat), MW
 
 def dp_sistema(solv, cop, T, pts):
