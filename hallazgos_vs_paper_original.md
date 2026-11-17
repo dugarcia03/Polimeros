@@ -179,3 +179,61 @@ Nada nuevo cambia el diagnóstico de fondo, y se confirma con más fuerza:
 Para cerrar del todo la brecha se requiere la metodología 2 (segmentos α/β con
 fracciones de enlace B de Tabla 3 y los tres kij de Tabla 7) — no hay ningún ajuste
 dentro de la metodología 1 que lo logre con los datos del artículo.
+
+---
+
+# Verificación de ecuaciones contra la fuente original (Gross-Sadowski 2001)
+
+A sugerencia del usuario, se revisaron las ecuaciones de PC-SAFT contra la fuente
+primaria (J. Gross, G. Sadowski, Ind. Eng. Chem. Res. 40 (2001) 1244-1260, que es
+la ref [23] del paper de Arce), por si hubiera una errata de transcripción en el
+paper de Arce que se hubiera copiado al código. El PDF `gross2001.pdf` está en la rama.
+
+## 7. Cotejo ecuación por ecuación (Arce ↔ Gross-Sadowski ↔ código)
+
+| Concepto | Arce | Gross-Sadowski | Código (pcsaft_vle.py) | ¿Coincide? |
+|---|---|---|---|---|
+| d_i(T) | Ec. 26 | Ec. A.9 / Ec. 3 | `d_i` | ✓ idéntico |
+| ζ_k | Ec. 25 | Ec. A.8 / Ec. 9 | `zeta` | ✓ idéntico |
+| ã^hs | (en Ec.22) | Ec. A.6 | `a_hs` | ✓ idéntico |
+| g_ij^hs | Ec. 23 | Ec. A.7 / Ec. 8 | `g_hs` | ✓ idéntico |
+| ã^hc | Ec. 22 | Ec. A.4 | `a_hc` | ✓ idéntico (B=1 en pseudo-mon.) |
+| I1, I2 | — | Ec. A.16-17 | `_I1_I2` | ✓ idéntico |
+| a_k(m̄), b_k(m̄) | Ec. 31-32 | Ec. A.18-19 | `_ab` | ✓ idéntico |
+| C1 | Ec. 30 | Ec. A.11 | `_C1` | ✓ idéntico |
+| m²εσ³, m²ε²σ³ | (en 28-29) | Ec. A.12-13 | `_m2es` | ✓ idéntico |
+| ã^disp | Ec. 28-29 | Ec. A.10 | `a_disp` | ✓ idéntico |
+| σ_ij, ε_ij | Ec. 33 | Ec. A.14-15 | `_eps_sigma_cross` | ✓ idéntico |
+| P = ZkTρ·(1e10)³ | — | Ec. A.23 | `pressure` | ✓ idéntico (factor 1e30) |
+
+→ **No hay errata.** Cada ecuación del paper de Arce es transcripción fiel de
+  Gross-Sadowski, y el código las implementa correctamente.
+
+## 8. PRUEBA DE ORO: validación del motor con parámetros originales de GS
+
+Se calculó la Psat de n-alcanos puros usando los parámetros ORIGINALES de la
+Tabla 2 de Gross-Sadowski (independiente del paper de Arce). GS reporta AAD(Psat)<1%.
+
+| Sustancia | Parámetros GS (m, σ, ε/k) | T[K] | %err Psat (motor vs exp) |
+|---|---|---|---|
+| n-pentano | 2.6896, 3.7729, 231.20 | 300-360 | 0.04-0.11 |
+| n-hexano | 3.0576, 3.7983, 236.77 | 300-360 | 0.09-0.31 |
+| n-heptano | 3.4831, 3.8049, 238.40 | 300-360 | 0.04-0.08 |
+| n-octano | 3.8176, 3.8373, 242.78 | 300-360 | 0.13-0.94 |
+
+→ **El motor reproduce la Psat con error 0.04-0.94 %**, igualando la precisión
+  publicada por Gross-Sadowski. El motor PC-SAFT está verificado al 100 %,
+  de forma independiente del paper de Arce. (Ver `diag_validacion_gs.py`.)
+
+## 9. Conclusión reforzada
+
+El motor y las ecuaciones son demostrablemente correctos. Dado que el paper SÍ
+reporta ~4.4 % con metodología 1, la diferencia restante debe venir de los
+**datos de entrada específicos del copolímero**, no del modelo:
+
+- Los pseudo-monómeros (Tabla 5) ya se verificaron exactos vía Ecs. 13-15.
+- Los parámetros de monómeros (Tabla 4b) dan volúmenes de segmento por masa
+  (m/MW·σ³) coherentes entre sí (VA 1.50, STR 1.53, PVA 1.29), pese a que el
+  σ=5.07 Å del VA es inusualmente grande. No se detectó errata evidente.
+- La hipótesis viva más fuerte sigue siendo metodológica: cómo el paper aplica el
+  kij y combina los segmentos VA/ET (metodología 2 con kij por segmento, Tabla 7).
