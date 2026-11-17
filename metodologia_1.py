@@ -321,9 +321,9 @@ def _resolver_densidad(model, x, T, P_pa, fase):
         if prev_v * v < 0:
             lo, hi = sorted((prev_r, r))
             try:
-                return brentq(P, lo, hi, xtol=1e-16, rtol=1e-10, maxiter=100)
+                return brentq(P, lo, hi, rtol=1e-12, maxiter=100)
             except Exception:
-                return 0.5 * (lo + hi)
+                return None   # si brentq falla, NO devolver un punto medio falso
         prev_r, prev_v = r, v
     return None
 
@@ -345,7 +345,9 @@ def presion_de_burbuja(model_liq, model_vap, T, x1):
         lnphi_v = model_vap.ln_phi([1.0], rv, T)[0]
         return (math.log(x1) + lnphi_l) - lnphi_v      # Ec. 39
 
-    P_grid = np.logspace(math.log10(1.0e2), math.log10(2.0e6), 28)
+    # Rango de presion amplio (10 Pa a 2 MPa) para no dejar fuera los puntos mas
+    # diluidos de baja presion (tolueno/benceno ~900 Pa). 36 puntos log-espaciados.
+    P_grid = np.logspace(math.log10(1.0e1), math.log10(2.0e6), 36)
     prev_P = prev_f = None
     bracket = None
     for P_pa in P_grid:
@@ -364,7 +366,7 @@ def presion_de_burbuja(model_liq, model_vap, T, x1):
         return brentq(lambda P: residual(P), lo, hi,
                       xtol=1e-2, rtol=1e-9, maxiter=60) / 1e6   # MPa
     except Exception:
-        return 0.5 * (lo + hi) / 1e6
+        return None   # si brentq falla, NO devolver un punto medio falso
 
 
 # -----------------------------------------------------------------------------
