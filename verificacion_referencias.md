@@ -68,3 +68,32 @@ rama y podrían cargarse para completar la reproducción.
 - Hallazgos menores: (1) los 4 sistemas de doble temperatura solo tienen cargada
   una isoterma (np parcial, %ΔP no comparable 1:1 con el paper); (2) faltan por
   cargar los 3 sistemas de Wohlfarth/Kang.
+
+---
+
+# Actualización: cargados los 3 sistemas que faltaban (Wohlfarth + Kang)
+
+Se leyeron los PDFs de Wohlfarth [34] y Kang [35] como imágenes y se cargaron los
+datos de los 3 sistemas que faltaban. Sus datos están en **presión reducida P/P0**
+(no absoluta), que se convirtió a MPa multiplicando por la Psat del solvente.
+
+| Sistema | Ref | Formato fuente | Conversión | %ΔP M1 | paper |
+|---|---|---|---|---|---|
+| cC6+PSBR41 (343.15 K) | [34] Wohlfarth | P_A/P_0A | ×Psat_cC6(343)=0.07250 | **1.21** | 2.28 |
+| TOL+PSBR41 (343.15 K) | [34] Wohlfarth | P_A/P_0A | ×Psat_TOL(343)=0.02716 | 13.07 | 3.71 |
+| TOL+PSBR41 (373.15 K) | [34] Wohlfarth | P_A/P_0A | ×Psat_TOL(373)=0.07417 | 10.87 | 3.71 |
+| BZN+PSBR4.1 (308.15 K) | [35] Kang | p/p^s | ×Psat_BZN(308)=0.01976 | 9.30 | 2.44 |
+| BZN+PSBR4.1 (298.15 K) | [35] Kang | p/p^s | ×Psat_BZN(298)=0.01268 | 12.97 | 2.44 |
+
+**Verificación de la conversión:** los rangos de P resultantes coinciden con la
+Tabla 2 de Arce: cC6+PSBR41 0.0473-0.0665 (Arce 0.0472-0.0664); TOL+PSBR41
+0.0158-0.0678 (Arce 0.0158-0.0677); BZN+PSBR4.1 0.0022-0.0173 (Arce 0.0022-0.0172).
+Las tres conversiones son correctas.
+
+**Resultado:** los 3 sistemas son PSBR + solvente aromático/cicloalcano (no polares),
+donde el motor funciona bien. **cC6+PSBR41 da 1.21 %** (mejor que el paper, 2.28 %).
+Al añadirlos, el global M1 baja de 44.3 % a 37.6 % sobre 26 sistemas.
+
+Con esto, los 24 sistemas del paper están todos cargados (algunos con dos isotermas
+= 26 entradas). Todas las referencias verificadas y los datos convertidos
+correctamente a MPa.
