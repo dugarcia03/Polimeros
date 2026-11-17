@@ -176,3 +176,68 @@ que funcione:
 
 Verificación numérica (n-hexano, 330 K): η=0.365 (<1, adim), densidad másica
 0.62 g/cm³ (física), P=0.070 MPa (objetivo). Dimensionalmente sano.
+
+---
+
+# Verificación: los datos de las tablas se pasan en las unidades correctas
+
+Revisión de TODOS los archivos con datos (no solo los motores), comprobando que
+los valores de cada tabla entren a las ecuaciones en la unidad que estas esperan.
+
+## Tabla 4b (solventes, monómeros, polímeros)
+
+| Parámetro | Rótulo paper | Unidad real de uso | Transformación en código | ¿OK? |
+|---|---|---|---|---|
+| m/MW | "(mol)⁻¹" | **[mol/g]** | `m = (m/MW)·MW` → m **adim** | ✓ |
+| σ | Å | Å | directo en d_i, σ_ij | ✓ |
+| ε/k | K | K | `eps_k/T` [K/K] adim | ✓ |
+| kAB | – | adim | directo | ✓ |
+| εAB | K | K | `epsAB/T` [K/K] adim | ✓ |
+
+**Punto clave (m/MW):** el rótulo "(mol)⁻¹" de la Tabla 4b es una simplificación;
+dimensionalmente m/MW es **[mol/g]** (segmentos·mol/g). Al multiplicar por MW [g/mol]
+las unidades se cancelan y m sale adimensional en rango físico:
+- solventes: m ≈ 2.2–2.9 (verificado: nC6 m=2.94, cercano al GS 3.06).
+- copolímeros: m = (m/MW)·MW_copol ≈ 4000–30000 segmentos.
+
+**Consistencia MW_copol:** el mismo MW_copol [g/mol] se usa en m (Ec.18) y en la
+conversión w1→x1. Coherente.
+
+## Tabla 5 (pseudo-monómeros): m/MW [mol/g], σ [Å], ε/k [K] — mismas unidades. ✓
+
+## Tabla 3 (fracciones): z, B adimensionales; Σz=1 y ΣB=1 verificados. ✓
+
+## Tabla 6 / 7 (kij): adimensionales, entran en (1−kij). ✓
+
+## Tabla 2 (datos experimentales)
+
+| Dato | Unidad | Nota | ¿OK? |
+|---|---|---|---|
+| w1 | – (frac. másica) | directo en w1→x1 | ✓ |
+| T | K | directo | ✓ |
+| P | MPa (paper) | datos de Gupta en **kPa** convertidos a **MPa** (÷1000) | ✓ |
+
+**Conversión de presión verificada:** los rangos de P cargados (en MPa) coinciden
+exactamente con la Tabla 2 en los 7 sistemas chequeados (ACE+PSBR5 0.0137–0.0613,
+CHL+PVAE9 0.0140–0.0871, etc.). El motor devuelve P en Pa y divide por 1e6 → MPa;
+se compara MPa contra MPa. Congruente.
+
+## MW de copolímeros (código vs Tabla 3)
+
+PSBR5=100000, PSBR23=720000, PSBR41=100000, PSBR45=600000, PVAE9=100000,
+PVAE25=88000, PVAE50=250000, PVAE70=280000, PVAVC12=30000. **Todos coinciden
+con la columna "MW copolymer" de la Tabla 3.** ✓
+
+## Constantes universales (Gross-Sadowski)
+
+A_COEF, B_COEF: 7×3 adimensionales (polinomios en η y m̄, ambos adim); a00=0.9105631445. ✓
+
+## Conclusión
+
+**Todos los datos de las tablas se pasan a las ecuaciones en las unidades correctas,
+sin conversiones incorrectas ni implícitas erróneas.** Las dos conversiones no
+triviales están bien hechas:
+1. m/MW [mol/g] × MW [g/mol] → m adimensional.
+2. Presiones de Gupta kPa → MPa (÷1000), consistente con Tabla 2 y con la salida
+   del motor (Pa → MPa, ÷1e6).
+No se detectó ningún dato en unidad incorrecta en ningún archivo.
