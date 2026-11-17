@@ -237,3 +237,63 @@ reporta ~4.4 % con metodología 1, la diferencia restante debe venir de los
   σ=5.07 Å del VA es inusualmente grande. No se detectó errata evidente.
 - La hipótesis viva más fuerte sigue siendo metodológica: cómo el paper aplica el
   kij y combina los segmentos VA/ET (metodología 2 con kij por segmento, Tabla 7).
+
+---
+
+# Teoría del usuario: m por fracción másica (Ec.18) vs molar (Tabla 5)
+
+El usuario detectó una inconsistencia real: el número de segmentos m del copolímero
+se puede calcular de dos formas que difieren:
+- **Tabla 5 (fracción MOLAR, Ecs.13-15):** (m/MW)_psm promediado por x_monómero.
+- **Ec. 18 (fracción MÁSICA):** m = Σ w_α·MW·(m/MW)_α.
+
+## 10. Verificación de la inconsistencia
+
+| Copolímero | (m/MW) molar (=Tabla 5) | (m/MW) másico (Ec.18) | diferencia |
+|---|---|---|---|
+| PSBR5 | 0.045456 | 0.044948 | −1.1 % |
+| PSBR45 | 0.039562 | 0.036271 | −8.3 % |
+| PVAE25 | 0.051700 | 0.044934 | −13.1 % |
+| PVAE50 | 0.045107 | 0.033798 | −25.1 % |
+| PVAE70 | 0.036813 | 0.024889 | −32.4 % |
+
+→ La Tabla 5 coincide **exactamente** con la columna molar (0.051700 = molar).
+  Confirma que **el paper construyó la Tabla 5 por fracción molar**. La diferencia
+  con la Ec.18 (masa) crece cuando los dos monómeros tienen MW muy distintos
+  (VA=86 vs ET=28 → hasta 32 % en PVAE70).
+
+## 11. Impacto en el %ΔP (todas las variantes de construcción)
+
+| Sistema | paper | molar (Tabla5) | masa (Ec.18) |
+|---|---|---|---|
+| CHL+PVAE50 | 4.41 | 58.5 | **42.3** |
+| CHL+PVAE70 | 3.28 | 53.2 | **30.5** |
+| cC6+PVAE70 | 5.73 | 81.3 | **71.5** |
+| cC6+PSBR23 | 4.38 | 12.0 | **9.0** |
+| cC6+PSBR45 | 4.31 | **2.2** | 5.9 |
+| nC6+PSBR45 | 4.28 | **19.0** | 22.5 |
+| **GLOBAL** | **4.41** | 44.31 | 41.64 |
+
+→ La Ec.18 (masa) **mejora los PVAE de alto VA** pero empeora algunos PSBR.
+  El global baja levemente (44.3→41.6 %). **Confirma que la inconsistencia es real
+  y tiene efecto físico**, pero NO es la causa de la brecha de orden de magnitud.
+
+## 12. Pruebas adicionales descartadas
+
+- **Parámetros de polímero (PS,PB,PVA,PE,PVC) en lugar de monómero:** empeora
+  todo (global 79.6 %). El pseudo-monómero de M1 usa parámetros de monómero.
+- **Fracciones de segmento de Tabla 3:** se calculan con parámetros de POLÍMERO
+  por masa (PSBR coincide exacto: ziβ=0.1409). Esto pertenece a la metodología 2
+  (segmentos α/β), no al pseudo-monómero de M1.
+- **Mejor construcción por sistema (molar o masa, el mínimo):** global óptimo
+  = 40.6 %. Aún lejísimos del 4.41 %. Cambiar la construcción del pseudo-monómero
+  no puede cerrar la brecha.
+
+## 13. Conclusión sobre la teoría
+
+La teoría del usuario identificó una **inconsistencia metodológica genuina** entre
+la Tabla 5 (molar) y la Ec.18 (masa), con efecto físico medible (mejora PVAE de
+alto VA). Pero es un efecto de segundo orden: el síntoma dominante (P calculada
+demasiado baja a w1 bajo) persiste con cualquier construcción, porque es propio del
+régimen de dilución del pseudo-segmento único con un solo kij (ya refutado que
+algún kij lo arregle para cC6+PVAE). La brecha solo se cierra con metodología 2.
