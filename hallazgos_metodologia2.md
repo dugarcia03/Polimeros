@@ -74,3 +74,72 @@ precisión. Como las ecuaciones están verificadas idénticas a Gross-Sadowski y
 motor reproduce n-alcanos puros con <1 % de error, la diferencia reside en la
 **parte de mezcla con polímero de m muy grande** (cálculo de φ̂ del solvente), no
 en las ecuaciones ni en la metodología elegida.
+
+---
+
+# Continuación: bug encontrado y aislamiento de la fugacidad
+
+## Bug corregido: doble conteo del enlace cruzado en las fracciones B
+
+Al auditar el hard-chain se detectó que la matriz de fracciones de enlace B
+**no sumaba 1** (sumaba 1.28-1.95). Las tres fracciones de Tabla 3 (B_αα, B_αβ,
+B_ββ) suman 1, pero en la doble suma Σ_a Σ_b B[a][b]·ln g el enlace cruzado αβ
+aparece dos veces, así que debe repartirse **B_αβ/2** en cada posición off-diagonal.
+
+Efecto del fix:
+- Global M2: **41.3 % → 32.8 %**.
+- Arregla los casos catastróficos: nC6+PSBR45 **152 → 24 %**, cC6+PSBR45 **55 → 5.5 %**.
+- Resultados mucho más uniformes (5-70 % en vez de 6-152 %).
+
+## Verificación de las fracciones de enlace (Tabla 3 vs Tabla 1)
+
+Las B de Tabla 3 se reproducen con la fórmula de copolímero random (Tabla 1):
+B_αβ = 2·z_β·m/(m−1), usando **m calculado con parámetros de POLÍMERO** (no monómero):
+
+| Copolímero | B_αβ fórmula (m-polímero) | B_αβ Tabla 3 | dif |
+|---|---|---|---|
+| PVAE9 | 0.1605 | 0.1608 | −0.0003 |
+| PVAE25 | 0.4544 | 0.4577 | −0.0033 |
+| PSBR23 | 0.2818 | 0.2839 | −0.0021 |
+| PSBR45 | 0.6200 | 0.6293 | −0.0093 |
+
+→ El paper usa m-polímero para el esqueleto (m, z, B) pero parámetros de monómero
+  para σ/ε de los segmentos. Usar parámetros de polímero en σ/ε empeora (70 %).
+
+## Aislamiento del coeficiente de fugacidad del solvente
+
+- **Límite x1→1:** ln φ̂₁(mezcla) → ln φ del solvente puro (dif = +0.00000). Correcto.
+- **Paso h de la derivada composicional:** estable (h=1e-6 a 1e-9 dan el mismo
+  valor). No hay sesgo numérico.
+- **Errata conocida de Gross-Sadowski (Ec. A.11, C1):** es solo tipográfica
+  (falta un exponente −1 impreso); nuestro código ya la implementa correcta
+  (la prueba de oro con n-alcanos lo confirma).
+
+## Re-optimización de kij (prueba definitiva)
+
+Para la familia CHL+PVAE, barriendo κa (con κb, καβ fijos de Tabla 7):
+
+| κa | %ΔP |
+|---|---|
+| −0.20 | 56.6 |
+| −0.0532 (paper) | 28.4 |
+| −0.01 (óptimo) | **23.4** |
+| +0.08 | 53.4 |
+
+→ El mínimo alcanzable por nuestro motor es **23.4 %**; NO baja al 2.59 % del paper
+  con ningún κa. El residuo es irreducible por ajuste de parámetros.
+
+## Conclusión final de la Metodología 2
+
+M2 está implementada fielmente (y se corrigió un bug real en las fracciones B).
+Mejora mucho varios PVAE respecto a M1, pero el global queda en ~33 % frente al
+2.04 % del paper, y **ningún ajuste de kij lo cierra**. Con:
+- ecuaciones verificadas idénticas a Gross-Sadowski,
+- motor validado <1 % en n-alcanos puros,
+- errata C1 ya corregida, fracciones B corregidas y sumando 1,
+- límite de dilución y derivadas numéricas correctos,
+
+la discrepancia residual solo puede venir de una **decisión metodológica no
+documentada en el paper** sobre cómo combina los segmentos VA/ET del copolímero
+(p. ej. una regla distinta para σ/ε del copolímero, o un m efectivo propio), que
+no es recuperable de las tablas y ecuaciones publicadas.
