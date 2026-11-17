@@ -19,10 +19,24 @@
     4) Calculo del %DeltaP (Ec. 40) vs el paper.
     5) Generacion de las figuras VLE, UNA POR SOLVENTE/FAMILIA.
 
-  NOTA: la metodologia 1 reproduce bien los sistemas no polares (PSBR con
-  alcanos/aromaticos: ~1-20%), pero da errores grandes en los sistemas polares
-  (PVAE/PVAVC con cloroformo, acetona, butanol). Esto es inherente al
-  pseudo-monomero de baja densidad de esos copolimeros (ver el articulo).
+  NOTA sobre el alcance (metodologia 1):
+    La metod. 1 reproduce bien los sistemas con el copolimero PSBR (estireno-
+    butadieno): ~1-20% con alcanos, cC6, benceno y tolueno. En cambio da errores
+    grandes con el copolimero PVAE (acetato de vinilo-etileno): ~50-94%.
+
+    El problema NO esta en los parametros del solvente: el ciclohexano (cC6) sirve
+    de control porque aparece con AMBOS copolimeros. cC6+PSBR da 2-12% mientras
+    cC6+PVAE da 81-85%, con el MISMO solvente (cuyo Psat puro reproduce al 0.9%).
+    Si el solvente fuera el problema, TODOS sus sistemas fallarian; no es el caso.
+
+    El error esta asociado al copolimero PVAE y se compone de dos efectos:
+      (a) el kij muy negativo de los PVAE (-0.06 a -0.12, Tabla 6) entra como
+          eps_cruz = sqrt(eps_s*eps_c)*(1-kij); con kij<0 aumenta la atraccion
+          solvente-copolimero y hunde la presion calculada. Con kij=0 el error
+          de cC6+PVAE baja de ~84% a ~29-42%.
+      (b) un remanente propio del pseudo-monomero PVAE (derivado del monomero VA,
+          con sigma=5.07 y m/MW=0.0115 anomalos): aun con kij=0 queda ~29-42%.
+    Ambos efectos son comunes a cualquier solvente con PVAE, no al solvente.
 
   Uso:
     python metodologia_1.py          -> imprime tabla de %dP y genera figuras
