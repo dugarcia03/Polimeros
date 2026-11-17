@@ -143,3 +143,49 @@ la discrepancia residual solo puede venir de una **decisión metodológica no
 documentada en el paper** sobre cómo combina los segmentos VA/ET del copolímero
 (p. ej. una regla distinta para σ/ε del copolímero, o un m efectivo propio), que
 no es recuperable de las tablas y ecuaciones publicadas.
+
+---
+
+# Sensibilidad al peso molecular del copolímero (PM)
+
+Se revisó cuánto afecta el PM del copolímero al %ΔP de la Metodología 2. El PM
+entra en dos sitios: (a) la conversión w1→x1 y (b) la Ec.18 m = w·MW·(m/MW) por
+segmento. Además, las fracciones de enlace B dependen de m vía la fórmula de Tabla 1.
+
+## 14. Barrido de MW (B fijas de Tabla 3)
+
+| Sistema | MW real | paper | 10k | 88k | 250k | 600k | 2M |
+|---|---|---|---|---|---|---|---|
+| CHL+PVAE9 | 100000 | 2.59 | 58.85 | 58.62 | 58.60 | 58.60 | 58.60 |
+| CHL+PVAE50 | 250000 | 2.59 | 8.12 | 7.43 | 7.37 | 7.36 | 7.35 |
+| cC6+PVAE25 | 88000 | 2.09 | 29.54 | 29.04 | 28.99 | 28.98 | 28.98 |
+| cC6+PSBR45 | 600000 | 2.11 | 6.72 | 5.58 | 5.49 | 5.46 | 5.44 |
+| nC6+PSBR45 | 600000 | 1.84 | 22.94 | 24.26 | 24.37 | 24.40 | 24.42 |
+
+→ **Insensible al MW:** de 10 000 a 2 000 000 g/mol el %ΔP cambia < 1-2 puntos y
+  converge muy rápido. Recalcular las B con el m de cada MW da resultados casi
+  idénticos (B ∝ m/(m−1) ≈ 1). Comportamiento correcto de cadena larga: el VLE
+  del solvente depende de m/MW, no de MW.
+
+→ **El PM NO explica la discrepancia con el paper.** El valor exacto del MW que
+  use el paper (88k, 100k, 250k, 280k...) es irrelevante para el error.
+
+## 15. La variable que SÍ importa: composición (z del segmento VA)
+
+El error depende fuertemente del contenido del segmento minoritario de alto ε:
+
+| Sistema | z_VA | ratio Pcalc/Pexp | %ΔP |
+|---|---|---|---|
+| CHL+PVAE50 | 0.171 | 0.85-1.00 (bien) | 7.4 |
+| CHL+PVAE9 | 0.020 | ~0.4 (subestima x2.3) | 58.6 |
+
+Con solo 2 % de segmento VA, el κa=−0.0532 (interacción CHL-VA) casi no pesa en
+el término de dispersión (va ponderado por z_VA=0.02), así que el modelo trata el
+copolímero como casi puro PE apolar → subestima P. Usar z de polímero (z_VA≈0.095,
+5× mayor) mejora PVAE9 (58→48 %) pero empeora el global (33→44 %): no es la receta.
+
+## 16. Conclusión del análisis de PM
+
+El peso molecular **no es la variable que falta**. La sensibilidad real es a la
+**composición de segmentos y a cómo se pondera el kij del segmento minoritario de
+alto ε (VA)** en la dispersión — el punto metodológico no documentado del paper.
