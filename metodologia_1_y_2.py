@@ -405,14 +405,28 @@ KIJ_M1 = {
 }
 
 # =====================  METODOLOGIA 2  =======================================
-# Monomeros (Tabla 4b): (m_MW, sigma, eps_k, MW)
+# NOTA DE AUDITORIA (ambiguedad del paper en M2 -- leer antes de tocar):
+#   El texto del paper (sec. 3, pag. 55) dice que los parametros de un sistema M2
+#   son los de "solvent, poly(alpha) and poly(beta)" (POLIMEROS: PS, PB, PVA, PE),
+#   y con esos parametros la fraccion de segmento ziβ reproduce EXACTAMENTE la
+#   Tabla 3 (PSBR23: 0.1409; PSBR45: 0.3100).  SIN EMBARGO, al usar los parametros
+#   de POLIMERO con los kij publicados (Tabla 7) el error global sube a ~70%,
+#   mientras que usando los parametros de MONOMERO (STR, BTD, VA, ET de la Tabla
+#   4b) el error global es ~33%.  Esto indica que los kij de la Tabla 7 fueron
+#   ajustados por los autores junto con los parametros de MONOMERO (o con una
+#   construccion no documentada), de modo que NO es posible reproducir el 2.04%
+#   del paper sin reajustar los kij.  Se mantienen los MONOMEROS porque dan el
+#   mejor acuerdo con los kij tal como estan publicados.  (Las fracciones de
+#   segmento resultantes no igualan la Tabla 3; es una inconsistencia del paper.)
+#
+# Monomeros (Tabla 4b, seccion "Monomers"): (m_MW, sigma, eps_k, MW)
 MON = {
     "STR": (0.024339, 3.9750, 318.70, 104.14), "VA": (0.011525, 5.0706, 421.42, 86.09),
     "BTD": (0.046033, 3.4508, 215.10, 54.10),  "ET": (0.056070, 3.4250, 178.77, 28.10),
     "VC":  (0.091211, 2.4024, 160.05, 62.50),
 }
 # Copolimero -> (mon1, mon2, wt%_mon1, MW_copol, (B_aa_t3, B_ab_t3, B_bb_t3))
-#   mon1 = monomero del nombre (STR en PSBR, VA en PVAE); mon2 = el otro.
+#   mon1 = constituyente del nombre (STR en PSBR, VA en PVAE); mon2 = el otro.
 #   Mapeo Tabla 3: beta=mon1 (del wt%), alpha=mon2.  Motor: seg 0=mon1, seg 1=mon2.
 COP_M2 = {
     "PSBR23": ("STR","BTD", 23, 720000, (0.7161, 0.2839, 0.0000)),
@@ -533,7 +547,7 @@ def modelos_m2(solv_key, cop_key):
         return None
     A, B, wtA, MW_c, Bfr = COP_M2[cop_key]
     wA = wtA / 100.0; wB = 1.0 - wA
-    mA = MON[A]; mB = MON[B]
+    mA = MON[A]; mB = MON[B]                                # parametros de MONOMERO (ver nota)
     segA = Segmento(A, wA * MW_c * mA[0], mA[1], mA[2])     # Ec. 18
     segB = Segmento(B, wB * MW_c * mB[0], mB[1], mB[2])
     B_aa, B_ab, B_bb = Bfr                                  # Tabla 3
