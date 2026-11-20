@@ -737,11 +737,20 @@ _CURVAS = {}
 
 
 def curva_cacheada(metod, solv_key, cop_key, T, pts):
+    """metod: 'M1' (sin polar), 'M2', o 'M1P' (M1 con termino dipolar)."""
+    global USAR_POLAR
     key = (metod, solv_key, cop_key, T)
     if key not in _CURVAS:
-        mods = modelos_m1(solv_key, cop_key) if metod == "M1" \
-            else modelos_m2(solv_key, cop_key)
-        _CURVAS[key] = curva(mods, solv_key, T, pts) if mods is not None else ([], [])
+        if metod == "M2":
+            mods = modelos_m2(solv_key, cop_key)
+            _CURVAS[key] = curva(mods, solv_key, T, pts) if mods is not None else ([], [])
+        else:
+            # M1 (sin polar) o M1P (con polar): fijamos el flag y reconstruimos
+            prev = USAR_POLAR
+            USAR_POLAR = (metod == "M1P")
+            mods = modelos_m1(solv_key, cop_key)
+            _CURVAS[key] = curva(mods, solv_key, T, pts) if mods is not None else ([], [])
+            USAR_POLAR = prev
     return _CURVAS[key]
 
 
@@ -968,6 +977,95 @@ def _psat_puro(solv, T):
     return None
 
 
+# =============================================================================
+#  GRAFICAS DEL EFECTO DEL TERMINO POLAR  (M1 sin polar vs M1 con polar)
+# =============================================================================
+def graficar_polar(out="figuras_polar"):
+    """
+    Una figura por solvente POLAR/familia, comparando sobre los puntos
+    experimentales: M1 sin termino polar (linea continua) vs M1 con termino
+    polar (linea discontinua).  Los solventes no polares no se grafican
+    (el termino dipolar no los afecta).
+    """
+    outdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), out)
+    os.makedirs(outdir, exist_ok=True)
+    # agrupar solo sistemas con solvente polar
+    grupos = defaultdict(list)
+    for (s, c, T) in DATA:
+        if s in DIPOLO_D and (s, c) in KIJ_M1:
+            grupos[(s, familia(c))].append((c, T))
+    print("\nGenerando figuras del termino polar en:", outdir)
+    for (solv_key, fam), sistemas in sorted(grupos.items()):
+        sistemas.sort()
+        fig, ax = plt.subplots(figsize=(8, 6))
+        for idx, (cop_key, T) in enumerate(sistemas):
+            col = COLORS[idx % len(COLORS)]; mk = MARKERS[idx % len(MARKERS)]
+            pts = DATA[(solv_key, cop_key, T)]
+            ax.plot([p[0] for p in pts], [p[1] for p in pts], mk, color=col,
+                    ms=6, markerfacecolor="white", markeredgewidth=1.3,
+                    label="%s exp (T=%.1f K)" % (cop_key, T))
+            w0, P0 = curva_cacheada("M1", solv_key, cop_key, T, pts)
+            if w0:
+                ax.plot(w0, P0, "-", color=col, lw=1.8)
+            wp, Pp = curva_cacheada("M1P", solv_key, cop_key, T, pts)
+            if wp:
+                ax.plot(wp, Pp, "--", color=col, lw=1.8)
+        nom = NOMBRES.get(solv_key, solv_key)
+        mu = DIPOLO_D.get(solv_key, 0.0)
+        ax.set_xlabel("Fraccion masica de solvente  $w_1$")
+        ax.set_ylabel("Presion  $P$  (MPa)")
+        ax.set_title("Efecto del termino dipolar\n%s (%s, mu=%.2f D) + %s\n"
+                     "simbolos = exp | continua = M1 sin polar | discontinua = M1 + polar"
+                     % (solv_key, nom, mu, fam))
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=8, title="Copolimero")
+        fig.tight_layout()
+        fig.savefig(os.path.join(outdir, "POLAR_%s_%s.png" % (solv_key, fam)), dpi=130)
+        plt.close(fig)
+        print("  OK  %s + %s (mu=%.2f D)" % (solv_key, fam, mu))
+
+
+def grafica_polar_resumen(out="resultados_polar.png"):
+    """UNA imagen (grid) con todos los sistemas de solvente polar: M1 vs M1+polar."""
+    outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), out)
+    grupos = defaultdict(list)
+    for (s, c, T) in DATA:
+        if s in DIPOLO_D and (s, c) in KIJ_M1:
+            grupos[(s, familia(c))].append((c, T))
+    claves = sorted(grupos.keys())
+    ncols = 2
+    nrows = math.ceil(len(claves) / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6.0 * ncols, 4.5 * nrows))
+    axes = np.atleast_1d(axes).ravel()
+    print("\nGenerando imagen resumen del termino polar:", outpath)
+    for ax_i, (solv_key, fam) in enumerate(claves):
+        ax = axes[ax_i]
+        for idx, (cop_key, T) in enumerate(sorted(grupos[(solv_key, fam)])):
+            col = COLORS[idx % len(COLORS)]; mk = MARKERS[idx % len(MARKERS)]
+            pts = DATA[(solv_key, cop_key, T)]
+            ax.plot([p[0] for p in pts], [p[1] for p in pts], mk, color=col,
+                    ms=5, markerfacecolor="white", markeredgewidth=1.1,
+                    label="%s (%.0f K)" % (cop_key, T))
+            w0, P0 = curva_cacheada("M1", solv_key, cop_key, T, pts)
+            if w0: ax.plot(w0, P0, "-", color=col, lw=1.5)
+            wp, Pp = curva_cacheada("M1P", solv_key, cop_key, T, pts)
+            if wp: ax.plot(wp, Pp, "--", color=col, lw=1.5)
+        mu = DIPOLO_D.get(solv_key, 0.0)
+        ax.set_title("%s (%s, mu=%.2f D) + %s"
+                     % (solv_key, NOMBRES.get(solv_key, solv_key), mu, fam), fontsize=10)
+        ax.set_xlabel("$w_1$", fontsize=9); ax.set_ylabel("$P$ (MPa)", fontsize=9)
+        ax.grid(True, alpha=0.3); ax.legend(fontsize=7); ax.tick_params(labelsize=8)
+    for k in range(len(claves), len(axes)):
+        axes[k].axis("off")
+    fig.suptitle("Efecto del termino dipolar (Gross-Vrabec) en sistemas con solvente polar\n"
+                 "simbolos = experimental | continua = M1 sin polar | discontinua = M1 + polar",
+                 fontsize=12, fontweight="bold")
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    fig.savefig(outpath, dpi=140)
+    plt.close(fig)
+    print("  OK  imagen resumen polar guardada")
+
+
 def main():
     global USAR_POLAR
     print("=" * 70)
@@ -1011,6 +1109,11 @@ def main():
     print("GLOBAL sin termino polar: %.2f%% (%d sistemas)" % (s0 / n0, int(n0)))
     print("GLOBAL con termino polar: %.2f%% (%d sistemas)" % (s1 / n1, int(n1)))
     print("Paper (metod. 1): 4.41%")
+
+    # 3) Graficas del efecto del termino polar (solo solventes polares)
+    USAR_POLAR = True
+    grafica_polar_resumen()   # UNA imagen con todos los sistemas polares
+    graficar_polar()          # ademas, una figura por solvente polar/familia
 
 
 if __name__ == "__main__":
